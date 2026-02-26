@@ -11,7 +11,9 @@
   ],
   "host_permissions": [
     "https://www.dlsite.com/*",
-    "https://*.firebaseio.com/*"
+    "https://*.firebaseio.com/*",
+    "https://identitytoolkit.googleapis.com/*",
+    "https://securetoken.googleapis.com/*"
   ],
   "background": {
     "service_worker": "background.js",

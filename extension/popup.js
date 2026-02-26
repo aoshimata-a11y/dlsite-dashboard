@@ -22,14 +22,23 @@ async function initAuth() {
   }
 
   document.getElementById("loginBtn")?.addEventListener("click", async () => {
-    setStatus("captureStatus", "ログイン中...");
+    const btn = document.getElementById("loginBtn");
+    btn.disabled = true;
+    btn.textContent = "ログイン中...";
     const res = await bg("SIGN_IN");
+    btn.disabled = false;
+    btn.textContent = "Googleでログイン";
     if (res?.ok) {
-      const user2 = await bg("GET_AUTH_STATE");
-      showMain(user2);
+      showMain(res);
     } else {
-      setStatus("captureStatus", "❌ ログイン失敗: " + (res?.error || ""), "error");
+      const msg = document.getElementById("loginErrorMsg");
+      if (msg) msg.textContent = "❌ " + (res?.error || "ログインに失敗しました");
     }
+  });
+
+  document.getElementById("logoutBtn")?.addEventListener("click", async () => {
+    await bg("SIGN_OUT");
+    showLogin();
   });
 }
 
@@ -38,6 +47,9 @@ function showLogin() {
   document.getElementById("mainPanel").style.display = "none";
   document.getElementById("authDot").className = "auth-dot offline";
   document.getElementById("authLabel").textContent = "未ログイン";
+  document.getElementById("logoutBtn").style.display = "none";
+  const msg = document.getElementById("loginErrorMsg");
+  if (msg) msg.textContent = "";
 }
 
 function showMain(user) {
@@ -45,6 +57,7 @@ function showMain(user) {
   document.getElementById("mainPanel").style.display = "block";
   document.getElementById("authDot").className = "auth-dot";
   document.getElementById("authLabel").textContent = user?.displayName || user?.email || "ログイン済み";
+  document.getElementById("logoutBtn").style.display = "inline-flex";
   loadWorkList();
 }
 
