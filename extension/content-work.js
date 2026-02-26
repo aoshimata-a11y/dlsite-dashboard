@@ -1,11 +1,12 @@
-/**
- * content-work.js
- * DLsite 作品公開ページから評価スコア・レビュー数・お気に入り・発売状態を取得
- *
- * 対象URL:
- *   https://www.dlsite.com/*/work/=/product_id/RJxxxxxx.html
- *   https://www.dlsite.com/*/work/announce/=/product_id/RJxxxxxx.html  (発売前)
- */
+// content-work.js
+// DLsite 作品公開ページから評価スコア・レビュー数・お気に入り・発売状態を取得
+//
+// 対象URL:
+//   https://www.dlsite.com/*/work/=/product_id/RJxxxxxx.html
+//   https://www.dlsite.com/*/work/announce/=/product_id/RJxxxxxx.html  (発売前)
+//
+// NOTE: ブロックコメント内にURLの "*/" を含めると JSパーサーが
+//       コメント終了と誤判定するため、行コメントを使用している。
 
 (function () {
   // 作品IDをURLから抽出
