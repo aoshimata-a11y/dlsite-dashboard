@@ -8,6 +8,7 @@
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
   import { getDatabase, ref, set, get, onValue, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+  import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyCkGabMQeQ2uB5RCLo3ndywW-SVuEGFuag",
@@ -21,6 +22,8 @@
 
   const app = initializeApp(firebaseConfig);
   const db = getDatabase(app);
+  const auth = getAuth(app);
+  const provider = new GoogleAuthProvider();
 
   // グローバルに公開
   window.firebaseDb = db;
@@ -29,19 +32,41 @@
   window.firebaseGet = get;
   window.firebaseOnValue = onValue;
   window.firebasePush = push;
+  window.firebaseAuth = auth;
+  window.firebaseSignIn = () => signInWithPopup(auth, provider);
+  window.firebaseSignOut = () => signOut(auth);
 
-  // Firebase からデータをリアルタイム同期
-  onValue(ref(db, 'dashboard'), (snapshot) => {
-    const data = snapshot.val();
-    if (data) {
-      window.state = {
-        works: data.works || {},
-        snapshots: data.snapshots ? Object.values(data.snapshots) : []
-      };
+  let unsubscribeData = null;
+
+  onAuthStateChanged(auth, (user) => {
+    if (user) {
+      // ログイン済み
+      document.getElementById('loginOverlay').style.display = 'none';
+      document.getElementById('userDisplay').textContent = user.displayName || user.email;
+      document.getElementById('authBtn').textContent = 'ログアウト';
+
+      // Firebase からデータをリアルタイム同期
+      if (unsubscribeData) unsubscribeData();
+      unsubscribeData = onValue(ref(db, 'dashboard'), (snapshot) => {
+        const data = snapshot.val();
+        if (data) {
+          window.state = {
+            works: data.works || {},
+            snapshots: data.snapshots ? Object.values(data.snapshots) : []
+          };
+        } else {
+          window.state = { works: {}, snapshots: [] };
+        }
+        renderAll();
+      });
     } else {
+      // 未ログイン
+      if (unsubscribeData) { unsubscribeData(); unsubscribeData = null; }
       window.state = { works: {}, snapshots: [] };
+      document.getElementById('loginOverlay').style.display = 'flex';
+      document.getElementById('userDisplay').textContent = '';
+      document.getElementById('authBtn').textContent = 'ログイン';
     }
-    renderAll();
   });
 </script>
 <style>
@@ -69,6 +94,28 @@
     min-height: 100vh;
   }
 
+  /* ---- ログインオーバーレイ ---- */
+  .login-overlay {
+    position: fixed; inset: 0; background: rgba(10,10,15,0.97);
+    z-index: 999; display: flex; align-items: center; justify-content: center;
+  }
+  .login-box {
+    background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 16px; padding: 3rem 2.5rem; text-align: center; max-width: 380px;
+  }
+  .login-box h2 { font-size: 1.3rem; margin-bottom: 0.5rem; }
+  .login-box p { color: var(--text2); font-size: 0.85rem; margin-bottom: 2rem; line-height: 1.7; }
+  .btn-google {
+    display: inline-flex; align-items: center; gap: 10px;
+    padding: 0.7rem 2rem; border-radius: 8px;
+    background: white; color: #333; border: none;
+    font-size: 0.9rem; font-family: inherit; cursor: pointer; font-weight: 700;
+    transition: opacity 0.2s;
+  }
+  .btn-google:hover { opacity: 0.9; }
+  .btn-google svg { width: 18px; height: 18px; }
+
+  /* ---- ヘッダー ---- */
   header {
     position: sticky; top: 0; z-index: 100;
     background: rgba(10,10,15,0.95);
@@ -92,6 +139,7 @@
 
   .header-right { display: flex; align-items: center; gap: 1rem; }
   .last-update { font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; color: var(--text2); }
+  .user-display { font-size: 0.75rem; color: var(--text2); }
 
   .btn {
     padding: 0.4rem 1rem; border-radius: 6px; border: 1px solid var(--border);
@@ -102,9 +150,11 @@
   .btn-primary { background: var(--accent); border-color: var(--accent); color: white; }
   .btn-primary:hover { background: #ff5590; color: white; }
 
+  /* ---- レイアウト ---- */
   main { max-width: 1400px; margin: 0 auto; padding: 2rem; }
 
-  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
+  /* 記録数を削除して3列に */
+  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem; }
 
   .stat-card {
     background: var(--bg2); border: 1px solid var(--border);
@@ -121,18 +171,19 @@
   .stat-delta { font-size: 0.75rem; margin-top: 0.3rem; }
   .stat-delta.up { color: var(--accent3); }
   .stat-delta.down { color: var(--accent); }
+  .stat-sub { font-size: 0.72rem; color: var(--text2); margin-top: 0.3rem; }
 
   .main-grid { display: grid; grid-template-columns: 1fr 380px; gap: 1.5rem; margin-bottom: 1.5rem; }
 
   .card { background: var(--bg2); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
   .card-header {
     padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
+    display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;
   }
   .card-title { font-size: 0.85rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--text2); }
   .card-body { padding: 1.5rem; }
 
-  .tabs { display: flex; gap: 0.5rem; }
+  .tabs { display: flex; gap: 0.5rem; flex-wrap: wrap; }
   .tab {
     padding: 0.3rem 0.8rem; border-radius: 6px; font-size: 0.75rem;
     cursor: pointer; border: 1px solid var(--border); background: transparent;
@@ -140,6 +191,19 @@
   }
   .tab.active { background: var(--accent); border-color: var(--accent); color: white; }
 
+  /* ---- 推移グラフコントロール ---- */
+  .chart-controls {
+    display: flex; gap: 0.8rem; align-items: center; flex-wrap: wrap;
+  }
+  .period-tabs { display: flex; gap: 0.3rem; }
+  .period-tab {
+    padding: 0.25rem 0.65rem; border-radius: 5px; font-size: 0.7rem;
+    cursor: pointer; border: 1px solid var(--border); background: transparent;
+    color: var(--text2); font-family: inherit; transition: all 0.2s;
+  }
+  .period-tab.active { background: var(--accent2); border-color: var(--accent2); color: white; }
+
+  /* ---- 作品テーブル ---- */
   .works-table { width: 100%; border-collapse: collapse; }
   .works-table th {
     text-align: left; font-size: 0.7rem; color: var(--text2);
@@ -161,7 +225,13 @@
 
   .work-title-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
   .work-id { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text2); display: block; margin-top: 2px; }
+  .work-badge {
+    display: inline-block; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 3px; margin-top: 3px;
+  }
+  .badge-released { background: rgba(0,212,170,0.1); color: var(--accent3); border: 1px solid rgba(0,212,170,0.3); }
+  .badge-pre { background: rgba(245,200,66,0.1); color: var(--gold); border: 1px solid rgba(245,200,66,0.3); }
   .num-cell { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
+  .fav-na { color: var(--text2); font-size: 0.72rem; }
 
   .delta-pill { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; }
   .delta-up { background: rgba(0,212,170,0.1); color: var(--accent3); }
@@ -170,6 +240,7 @@
 
   .chart-container { position: relative; height: 260px; }
 
+  /* ---- ランキング ---- */
   .ranking-list { display: flex; flex-direction: column; gap: 0.6rem; }
   .rank-item {
     display: flex; align-items: center; gap: 0.8rem;
@@ -181,6 +252,14 @@
   .rank-sub { font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; color: var(--text2); margin-top: 2px; }
   .rank-sales { font-family: 'JetBrains Mono', monospace; font-size: 1rem; font-weight: 700; color: var(--accent3); white-space: nowrap; }
 
+  /* ---- リリース後30日推移 ---- */
+  .thirty-day-section { margin-bottom: 1.5rem; }
+  .thirty-day-chart { position: relative; height: 280px; }
+  .chart-legend-custom { display: flex; gap: 1rem; flex-wrap: wrap; padding: 0.5rem 1.5rem 0; }
+  .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: var(--text2); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; }
+
+  /* ---- データ入力パネル ---- */
   .input-panel {
     position: fixed; right: 0; top: 0; bottom: 0; width: 480px;
     background: var(--bg2); border-left: 1px solid var(--border);
@@ -206,8 +285,7 @@
   .input-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.8rem; }
 
   .work-entry { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.8rem; }
-  .work-entry-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.8rem; }
-  .work-entry-title { font-size: 0.85rem; font-weight: 700; }
+  .work-entry-title { font-size: 0.85rem; font-weight: 700; margin-bottom: 0.8rem; display: flex; align-items: center; gap: 0.5rem; }
 
   .section-title { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text2); margin-bottom: 0.8rem; padding-bottom: 0.4rem; border-bottom: 1px solid var(--border); }
 
@@ -234,10 +312,37 @@
   }
   .firebase-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent3); }
 
-  @media (max-width: 1100px) { .main-grid { grid-template-columns: 1fr; } .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 1100px) {
+    .main-grid { grid-template-columns: 1fr; }
+    .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .stats-grid { grid-template-columns: 1fr; }
+  }
 </style>
 </head>
 <body>
+
+<!-- ログインオーバーレイ -->
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="logo" style="justify-content:center; margin-bottom:1rem;">
+      <div class="logo-dot"></div>
+      DLsite Dashboard
+    </div>
+    <h2>ログインが必要です</h2>
+    <p>Googleアカウントでログインして<br>ダッシュボードにアクセスしてください</p>
+    <button class="btn-google" onclick="window.firebaseSignIn()">
+      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+        <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+        <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+        <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+      </svg>
+      Googleでログイン
+    </button>
+  </div>
+</div>
 
 <header>
   <div class="logo">
@@ -249,13 +354,16 @@
       <div class="firebase-dot"></div>
       Firebase同期中
     </div>
+    <span class="user-display" id="userDisplay"></span>
     <span class="last-update" id="lastUpdate">読み込み中...</span>
+    <button class="btn" id="authBtn" onclick="handleAuth()">ログイン</button>
     <button class="btn" onclick="togglePanel()">📝 データ入力</button>
     <button class="btn btn-primary" onclick="exportCSV()">📊 CSV出力</button>
   </div>
 </header>
 
 <main>
+  <!-- 統計カード（3列） -->
   <div class="stats-grid">
     <div class="stat-card" style="--accent-color: var(--accent3)">
       <div class="stat-label">総販売本数</div>
@@ -263,34 +371,39 @@
       <div class="stat-delta" id="totalSalesDelta"></div>
     </div>
     <div class="stat-card" style="--accent-color: var(--accent)">
-      <div class="stat-label">総お気に入り数</div>
+      <div class="stat-label">お気に入り <span style="font-size:0.6em;color:var(--text2)">（発売前作品）</span></div>
       <div class="stat-value" id="totalFav">—</div>
       <div class="stat-delta" id="totalFavDelta"></div>
     </div>
     <div class="stat-card" style="--accent-color: var(--accent2)">
       <div class="stat-label">作品数</div>
       <div class="stat-value" id="totalWorks">—</div>
-      <div class="stat-delta"></div>
-    </div>
-    <div class="stat-card" style="--accent-color: var(--gold)">
-      <div class="stat-label">記録数</div>
-      <div class="stat-value" id="totalSnapshots">—</div>
-      <div class="stat-delta" style="color: var(--text2)" id="snapshotSub"></div>
+      <div class="stat-sub" id="worksSub"></div>
     </div>
   </div>
 
   <div class="main-grid">
     <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+
+      <!-- 推移グラフ -->
       <div class="card">
         <div class="card-header">
           <span class="card-title">推移グラフ</span>
-          <div style="display:flex; gap:0.8rem; align-items:center;">
+          <div class="chart-controls">
+            <div class="period-tabs">
+              <button class="period-tab active" onclick="setPeriod('all', this)">全期間</button>
+              <button class="period-tab" onclick="setPeriod('month', this)">月別</button>
+              <button class="period-tab" onclick="setPeriod('week', this)">週別</button>
+              <button class="period-tab" onclick="setPeriod('day', this)">日別</button>
+            </div>
             <select id="chartWorkSelect" class="form-input" style="width:auto; padding: 0.3rem 0.6rem; font-size: 0.75rem; font-family: inherit;" onchange="renderChart()">
               <option value="__all__">全作品合計</option>
             </select>
             <div class="tabs">
               <button class="tab active" onclick="setMetric('sales', this)">販売数</button>
               <button class="tab" onclick="setMetric('fav', this)">お気に入り</button>
+              <button class="tab" onclick="setMetric('rating', this)">評価</button>
+              <button class="tab" onclick="setMetric('reviews', this)">レビュー</button>
             </div>
           </div>
         </div>
@@ -299,6 +412,7 @@
         </div>
       </div>
 
+      <!-- 作品一覧テーブル -->
       <div class="card">
         <div class="card-header">
           <span class="card-title">作品一覧</span>
@@ -306,6 +420,7 @@
             <button class="tab active" onclick="setSortTable('sales', this)">販売数順</button>
             <button class="tab" onclick="setSortTable('fav', this)">お気に入り順</button>
             <button class="tab" onclick="setSortTable('delta', this)">伸び順</button>
+            <button class="tab" onclick="setSortTable('rating', this)">評価順</button>
           </div>
         </div>
         <div class="card-body" style="padding: 0;">
@@ -317,6 +432,7 @@
           </div>
         </div>
       </div>
+
     </div>
 
     <div style="display: flex; flex-direction: column; gap: 1.5rem;">
@@ -343,17 +459,31 @@
             <strong style="color: var(--accent2);">拡張機能の使い方：</strong><br>
             1. DLsiteの作品ページを開く<br>
             2. 拡張アイコンをクリック<br>
-            3. <strong style="color:var(--accent2);">「キャプチャ」</strong>ボタンで自動取得<br>
-            4. このページに自動反映される<br><br>
+            3. <strong style="color:var(--accent2);">「全作品を更新」</strong>で自動取得<br>
+            4. 管理画面CSVをインポート可能<br><br>
+            <span style="color: var(--accent3);">✓ 評価・レビュー・お気に入りを自動取得</span><br>
             <span style="color: var(--accent3);">✓ Firebaseでリアルタイム同期</span>
           </div>
         </div>
       </div>
     </div>
   </div>
+
+  <!-- リリース後30日推移ビュー -->
+  <div class="card thirty-day-section" id="thirtyDaySection" style="display:none;">
+    <div class="card-header">
+      <span class="card-title">リリース後30日推移</span>
+      <div style="font-size:0.72rem; color:var(--text2);">発売日を設定した作品のみ表示</div>
+    </div>
+    <div id="thirtyDayLegend" class="chart-legend-custom"></div>
+    <div class="card-body">
+      <div class="thirty-day-chart"><canvas id="thirtyDayChart"></canvas></div>
+    </div>
+  </div>
+
 </main>
 
-<!-- Input Panel -->
+<!-- データ入力パネル -->
 <div class="overlay" id="overlay" onclick="togglePanel()"></div>
 <div class="input-panel" id="inputPanel">
   <div class="panel-header">
@@ -361,6 +491,7 @@
     <button class="btn" onclick="togglePanel()">✕ 閉じる</button>
   </div>
   <div class="panel-body">
+
     <div class="section-title">スナップショット追加</div>
     <div class="form-group">
       <label class="form-label">記録日時</label>
@@ -369,7 +500,7 @@
     <div id="workEntries"></div>
     <button class="btn btn-primary" onclick="saveSnapshot()" style="width:100%; margin-bottom: 2rem;">💾 Firebaseに保存</button>
 
-    <div class="section-title">作品登録</div>
+    <div class="section-title">作品登録・更新</div>
     <div class="form-group">
       <label class="form-label">作品ID (例: RJ123456)</label>
       <input type="text" class="form-input" id="newWorkId" placeholder="RJxxxxxxx">
@@ -378,10 +509,22 @@
       <label class="form-label">作品タイトル</label>
       <input type="text" class="form-input" id="newWorkTitle" placeholder="作品名を入力">
     </div>
-    <button class="btn" onclick="registerWork()" style="width:100%; margin-bottom: 2rem;">作品を登録</button>
+    <div class="form-group">
+      <label class="form-label">発売日</label>
+      <input type="date" class="form-input" id="newReleaseDate">
+    </div>
+    <div class="form-group">
+      <label class="form-label">ステータス</label>
+      <select class="form-input" id="newIsReleased">
+        <option value="true">発売済み</option>
+        <option value="false">発売前</option>
+      </select>
+    </div>
+    <button class="btn" onclick="registerWork()" style="width:100%; margin-bottom: 2rem;">作品を登録・更新</button>
 
     <div class="section-title" style="color: var(--accent)">危険な操作</div>
     <button class="btn" onclick="clearAllData()" style="width:100%; border-color: var(--accent); color: var(--accent);">🗑️ 全データ削除</button>
+
   </div>
 </div>
 
@@ -390,11 +533,23 @@
 <script>
 window.state = { works: {}, snapshots: [] };
 let chartInstance = null;
+let thirtyDayChartInstance = null;
 let currentMetric = 'sales';
 let currentSort = 'sales';
+let currentPeriod = 'all';
 
 const COLORS = ['#e8407a','#7b4fff','#00d4aa','#f5c842','#ff7043','#29b6f6','#ab47bc','#66bb6a'];
 
+// ---- Auth ----
+function handleAuth() {
+  if (document.getElementById('authBtn').textContent === 'ログアウト') {
+    window.firebaseSignOut();
+  } else {
+    window.firebaseSignIn();
+  }
+}
+
+// ---- ユーティリティ ----
 function toast(msg, duration = 2500) {
   const el = document.getElementById('toast');
   el.textContent = msg;
@@ -411,7 +566,7 @@ function getWorkColor(workId) {
   return COLORS[works.indexOf(workId) % COLORS.length];
 }
 
-// Firebase 保存
+// ---- Firebase 保存 ----
 async function saveToFirebase(path, data) {
   if (!window.firebaseDb) return;
   await window.firebaseSet(window.firebaseRef(window.firebaseDb, path), data);
@@ -420,12 +575,22 @@ async function saveToFirebase(path, data) {
 async function registerWork() {
   const id = document.getElementById('newWorkId').value.trim().toUpperCase();
   const title = document.getElementById('newWorkTitle').value.trim();
-  if (!id || !title) { toast('⚠️ IDとタイトルを入力してください'); return; }
-  if (window.state.works[id]) { toast('⚠️ この作品IDは既に登録されています'); return; }
+  const releaseDate = document.getElementById('newReleaseDate').value;
+  const isReleased = document.getElementById('newIsReleased').value === 'true';
 
-  await saveToFirebase(`dashboard/works/${id}`, { id, title });
+  if (!id || !title) { toast('⚠️ IDとタイトルを入力してください'); return; }
+
+  const existing = window.state.works[id] || {};
+  await saveToFirebase(`dashboard/works/${id}`, {
+    ...existing,
+    id,
+    title,
+    release_date: releaseDate || existing.release_date || null,
+    is_released: isReleased
+  });
   document.getElementById('newWorkId').value = '';
   document.getElementById('newWorkTitle').value = '';
+  document.getElementById('newReleaseDate').value = '';
   toast(`✅ 「${title}」を登録しました`);
   populateWorkEntries();
 }
@@ -443,8 +608,11 @@ async function saveSnapshot() {
   works.forEach(w => {
     const salesEl = document.getElementById(`sales_${w.id}`);
     const favEl = document.getElementById(`fav_${w.id}`);
-    if (salesEl && favEl && (salesEl.value !== '' || favEl.value !== '')) {
-      records[w.id] = { sales: Number(salesEl.value) || 0, fav: Number(favEl.value) || 0 };
+    const rec = {};
+    if (salesEl?.value !== '') rec.sales = Number(salesEl.value) || 0;
+    if (favEl?.value !== '') rec.fav = Number(favEl.value) || 0;
+    if (Object.keys(rec).length > 0) {
+      records[w.id] = rec;
       hasData = true;
     }
   });
@@ -458,15 +626,56 @@ async function saveSnapshot() {
 }
 
 async function clearAllData() {
-  if (!confirm('全データを削除しますか？')) return;
+  if (!confirm('全データを削除しますか？この操作は取り消せません。')) return;
   await saveToFirebase('dashboard', null);
   toast('🗑️ 全データを削除しました');
 }
 
-// Render
+// ---- 期間グループ化 ----
+function groupByPeriod(snapshots, period) {
+  if (period === 'all') return [...snapshots].sort((a,b) => new Date(a.ts) - new Date(b.ts));
+
+  const groups = {};
+  for (const snap of snapshots) {
+    const d = new Date(snap.ts);
+    let key;
+    if (period === 'day') {
+      key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    } else if (period === 'week') {
+      // 週の開始日（月曜）を計算
+      const day = d.getDay() === 0 ? 6 : d.getDay() - 1;
+      const mon = new Date(d); mon.setDate(d.getDate() - day);
+      key = `${mon.getFullYear()}-${String(mon.getMonth()+1).padStart(2,'0')}-${String(mon.getDate()).padStart(2,'0')}`;
+    } else if (period === 'month') {
+      key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    }
+    // 各グループで最新のスナップショットを保持
+    if (!groups[key] || new Date(snap.ts) > new Date(groups[key].ts)) {
+      groups[key] = snap;
+    }
+  }
+  return Object.values(groups).sort((a,b) => new Date(a.ts) - new Date(b.ts));
+}
+
+function formatLabel(ts, period) {
+  const d = new Date(ts);
+  if (period === 'month') return `${d.getFullYear()}/${d.getMonth()+1}`;
+  if (period === 'week')  return `${d.getMonth()+1}/${d.getDate()}週`;
+  if (period === 'day')   return `${d.getMonth()+1}/${d.getDate()}`;
+  return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+// ---- グラフ ----
 function setMetric(m, btn) {
   currentMetric = m;
   btn.parentElement.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  renderChart();
+}
+
+function setPeriod(p, btn) {
+  currentPeriod = p;
+  btn.parentElement.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
   btn.classList.add('active');
   renderChart();
 }
@@ -481,23 +690,30 @@ function setSortTable(s, btn) {
 function renderChart() {
   const ctx = document.getElementById('mainChart');
   const selectedWork = document.getElementById('chartWorkSelect').value;
-  const sorted = [...window.state.snapshots].sort((a,b) => new Date(a.ts) - new Date(b.ts));
-  if (sorted.length === 0) return;
+  const grouped = groupByPeriod(window.state.snapshots, currentPeriod);
+  if (grouped.length === 0) return;
 
-  const labels = sorted.map(s => {
-    const d = new Date(s.ts);
-    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2,'0')}`;
-  });
-
+  const labels = grouped.map(s => formatLabel(s.ts, currentPeriod));
   let datasets = [];
+
   if (selectedWork === '__all__') {
-    const data = sorted.map(s => Object.values(s.records || {}).reduce((sum, r) => sum + Number(r[currentMetric] || 0), 0));
-    datasets = [{ label: '全作品合計', data, borderColor: '#e8407a', backgroundColor: 'rgba(232,64,122,0.1)', fill: true, tension: 0.4, pointRadius: 4 }];
+    const data = grouped.map(s =>
+      Object.values(s.records || {}).reduce((sum, r) => sum + Number(r[currentMetric] || 0), 0)
+    );
+    datasets = [{
+      label: '全作品合計', data,
+      borderColor: '#e8407a', backgroundColor: 'rgba(232,64,122,0.1)',
+      fill: true, tension: 0.4, pointRadius: 4
+    }];
   } else {
     const work = window.state.works[selectedWork];
     const color = getWorkColor(selectedWork);
-    const data = sorted.map(s => Number(s.records?.[selectedWork]?.[currentMetric] || 0));
-    datasets = [{ label: work?.title || selectedWork, data, borderColor: color, backgroundColor: color + '22', fill: true, tension: 0.4, pointRadius: 4 }];
+    const data = grouped.map(s => Number(s.records?.[selectedWork]?.[currentMetric] || 0));
+    datasets = [{
+      label: work?.title || selectedWork, data,
+      borderColor: color, backgroundColor: color + '22',
+      fill: true, tension: 0.4, pointRadius: 4
+    }];
   }
 
   if (chartInstance) chartInstance.destroy();
@@ -507,7 +723,10 @@ function renderChart() {
       responsive: true, maintainAspectRatio: false,
       plugins: {
         legend: { labels: { color: '#8888aa', font: { family: 'JetBrains Mono', size: 11 } } },
-        tooltip: { backgroundColor: '#1a1a24', borderColor: '#2a2a3a', borderWidth: 1, titleColor: '#e8e8f0', bodyColor: '#8888aa' }
+        tooltip: {
+          backgroundColor: '#1a1a24', borderColor: '#2a2a3a', borderWidth: 1,
+          titleColor: '#e8e8f0', bodyColor: '#8888aa'
+        }
       },
       scales: {
         x: { ticks: { color: '#555577', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#1e1e2e' } },
@@ -517,6 +736,7 @@ function renderChart() {
   });
 }
 
+// ---- 作品テーブル ----
 function renderTable() {
   const container = document.getElementById('worksTableContainer');
   const works = Object.values(window.state.works);
@@ -532,12 +752,21 @@ function renderTable() {
   const stats = works.map(w => {
     const l = latest?.records?.[w.id] || {};
     const p = prev?.records?.[w.id] || {};
-    return { ...w, sales: Number(l.sales||0), fav: Number(l.fav||0), salesDelta: Number(l.sales||0) - Number(p.sales||0), favDelta: Number(l.fav||0) - Number(p.fav||0) };
+    return {
+      ...w,
+      sales: Number(l.sales||0),
+      fav: Number(l.fav||0),
+      rating: l.rating || null,
+      reviews: l.reviews || null,
+      salesDelta: Number(l.sales||0) - Number(p.sales||0),
+      favDelta: Number(l.fav||0) - Number(p.fav||0)
+    };
   });
 
-  if (currentSort === 'sales') stats.sort((a,b) => b.sales - a.sales);
-  else if (currentSort === 'fav') stats.sort((a,b) => b.fav - a.fav);
-  else stats.sort((a,b) => b.salesDelta - a.salesDelta);
+  if (currentSort === 'sales')  stats.sort((a,b) => b.sales - a.sales);
+  else if (currentSort === 'fav')    stats.sort((a,b) => b.fav - a.fav);
+  else if (currentSort === 'delta')  stats.sort((a,b) => b.salesDelta - a.salesDelta);
+  else if (currentSort === 'rating') stats.sort((a,b) => (b.rating||0) - (a.rating||0));
 
   const deltaHTML = d => {
     if (d > 0) return `<span class="delta-pill delta-up">+${d.toLocaleString()}</span>`;
@@ -550,23 +779,54 @@ function renderTable() {
     return `<div class="rank-badge ${cls}">${i+1}</div>`;
   };
 
+  const favCell = w => {
+    if (w.is_released === false) {
+      // 発売前: お気に入り数を表示
+      return `<td class="num-cell">${w.fav.toLocaleString()}</td><td>${deltaHTML(w.favDelta)}</td>`;
+    } else {
+      // 発売後: 評価スコア＋レビュー数
+      const rating = w.rating !== null ? `★${Number(w.rating).toFixed(1)}` : '—';
+      const reviews = w.reviews !== null ? `(${w.reviews.toLocaleString()}件)` : '';
+      return `<td class="num-cell">${rating} <span style="font-size:0.7rem;color:var(--text2);">${reviews}</span></td><td></td>`;
+    }
+  };
+
+  const badge = w => {
+    if (w.is_released === false) return `<span class="work-badge badge-pre">発売前</span>`;
+    return `<span class="work-badge badge-released">発売済</span>`;
+  };
+
   container.innerHTML = `<table class="works-table">
-    <thead><tr><th>#</th><th>作品</th><th>販売数</th><th>増減</th><th>お気に入り</th><th>増減</th></tr></thead>
+    <thead><tr>
+      <th>#</th>
+      <th>作品</th>
+      <th>販売数</th>
+      <th>増減</th>
+      <th>お気に入り/評価</th>
+      <th>増減</th>
+    </tr></thead>
     <tbody>${stats.map((w,i) => `<tr>
       <td>${rankBadge(i)}</td>
-      <td><div class="work-title-cell">${escapeHtml(w.title)}</div><span class="work-id">${w.id}</span></td>
+      <td>
+        <div class="work-title-cell">${escapeHtml(w.title)}</div>
+        <span class="work-id">${w.id}</span>
+        ${badge(w)}
+      </td>
       <td class="num-cell">${w.sales.toLocaleString()}</td>
       <td>${deltaHTML(w.salesDelta)}</td>
-      <td class="num-cell">${w.fav.toLocaleString()}</td>
-      <td>${deltaHTML(w.favDelta)}</td>
+      ${favCell(w)}
     </tr>`).join('')}</tbody>
   </table>`;
 }
 
+// ---- ランキング ----
 function renderRanking() {
   const el = document.getElementById('rankingList');
   const works = Object.values(window.state.works);
-  if (works.length === 0) { el.innerHTML = '<div style="color:var(--text2);font-size:0.82rem;text-align:center;padding:1rem 0;">データなし</div>'; return; }
+  if (works.length === 0) {
+    el.innerHTML = '<div style="color:var(--text2);font-size:0.82rem;text-align:center;padding:1rem 0;">データなし</div>';
+    return;
+  }
 
   const sorted_snaps = [...window.state.snapshots].sort((a,b) => new Date(b.ts) - new Date(a.ts));
   const latest = sorted_snaps[0];
@@ -586,6 +846,7 @@ function renderRanking() {
     </div>`).join('');
 }
 
+// ---- 統計カード ----
 function renderStats() {
   const sorted = [...window.state.snapshots].sort((a,b) => new Date(b.ts) - new Date(a.ts));
   const latest = sorted[0];
@@ -593,11 +854,26 @@ function renderStats() {
   const sum = (snap, f) => snap ? Object.values(snap.records||{}).reduce((s,r) => s+Number(r[f]||0), 0) : 0;
 
   const totalSales = sum(latest, 'sales');
-  const totalFav = sum(latest, 'fav');
   document.getElementById('totalSales').textContent = totalSales.toLocaleString();
+
+  // お気に入りは発売前作品のみ合計
+  const preReleaseIds = Object.values(window.state.works)
+    .filter(w => w.is_released === false)
+    .map(w => w.id);
+
+  const sumPre = (snap, f) => snap
+    ? preReleaseIds.reduce((s, id) => s + Number(snap.records?.[id]?.[f] || 0), 0)
+    : 0;
+  const totalFav = sumPre(latest, 'fav');
   document.getElementById('totalFav').textContent = totalFav.toLocaleString();
-  document.getElementById('totalWorks').textContent = Object.keys(window.state.works).length;
-  document.getElementById('totalSnapshots').textContent = window.state.snapshots.length;
+
+  // 作品数（発売前/発売済み内訳）
+  const works = Object.values(window.state.works);
+  const releasedCount = works.filter(w => w.is_released !== false).length;
+  const preCount = works.filter(w => w.is_released === false).length;
+  document.getElementById('totalWorks').textContent = works.length;
+  document.getElementById('worksSub').textContent =
+    works.length > 0 ? `発売済 ${releasedCount} / 発売前 ${preCount}` : '';
 
   const deltaEl = (id, d) => {
     const el = document.getElementById(id);
@@ -607,11 +883,12 @@ function renderStats() {
     else { el.className = 'stat-delta'; el.textContent = prev ? '変化なし' : ''; }
   };
   deltaEl('totalSalesDelta', totalSales - sum(prev, 'sales'));
-  deltaEl('totalFavDelta', totalFav - sum(prev, 'fav'));
+  deltaEl('totalFavDelta', totalFav - sumPre(prev, 'fav'));
 
   if (latest) document.getElementById('lastUpdate').textContent = new Date(latest.ts).toLocaleString('ja-JP');
 }
 
+// ---- 最新スナップショット ----
 function renderRecent() {
   const el = document.getElementById('recentList');
   const sorted = [...window.state.snapshots].sort((a,b) => new Date(b.ts) - new Date(a.ts)).slice(0,5);
@@ -620,33 +897,145 @@ function renderRecent() {
     const dt = new Date(s.ts).toLocaleString('ja-JP');
     const total = Object.values(s.records||{}).reduce((sum,r) => sum+Number(r.sales||0), 0);
     return `<div style="padding:0.5rem 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
-      <div><div style="font-size:0.82rem;color:var(--text);">${dt}</div><div style="font-size:0.7rem;margin-top:2px;">${Object.keys(s.records||{}).length}作品</div></div>
+      <div>
+        <div style="font-size:0.82rem;color:var(--text);">${dt}</div>
+        <div style="font-size:0.7rem;margin-top:2px;">${Object.keys(s.records||{}).length}作品</div>
+      </div>
       <div style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:var(--accent3);">${total.toLocaleString()}</div>
     </div>`;
   }).join('');
 }
 
+// ---- リリース後30日推移 ----
+function renderThirtyDay() {
+  const works = Object.values(window.state.works).filter(w => w.release_date);
+  const section = document.getElementById('thirtyDaySection');
+
+  if (works.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+
+  const datasets = [];
+  const legendItems = [];
+
+  works.forEach((w, idx) => {
+    const releaseDate = new Date(w.release_date);
+    releaseDate.setHours(0, 0, 0, 0);
+    const color = COLORS[idx % COLORS.length];
+
+    // 発売日から30日以内のスナップショットを収集
+    const snapMap = {}; // day -> sales
+    for (const snap of window.state.snapshots) {
+      const snapDate = new Date(snap.ts);
+      const diffMs = snapDate - releaseDate;
+      const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+      if (diffDays >= 0 && diffDays <= 30) {
+        const sales = Number(snap.records?.[w.id]?.sales || 0);
+        if (sales > 0) {
+          // 同じ日の最新値を使用
+          if (!snapMap[diffDays] || new Date(snap.ts) > new Date(snapMap[diffDays].ts)) {
+            snapMap[diffDays] = { ts: snap.ts, sales };
+          }
+        }
+      }
+    }
+
+    if (Object.keys(snapMap).length === 0) return;
+
+    // 0〜30日のデータポイント配列に変換
+    const data = Array.from({ length: 31 }, (_, day) =>
+      snapMap[day] ? snapMap[day].sales : null
+    );
+
+    datasets.push({
+      label: w.title,
+      data,
+      borderColor: color,
+      backgroundColor: color + '22',
+      fill: false,
+      tension: 0.3,
+      pointRadius: 4,
+      spanGaps: true
+    });
+
+    legendItems.push({ title: w.title, color });
+  });
+
+  if (datasets.length === 0) {
+    section.style.display = 'none';
+    return;
+  }
+
+  // カスタム凡例
+  document.getElementById('thirtyDayLegend').innerHTML = legendItems.map(item =>
+    `<div class="legend-item">
+      <div class="legend-dot" style="background:${item.color}"></div>
+      ${escapeHtml(item.title)}
+    </div>`
+  ).join('');
+
+  const ctx = document.getElementById('thirtyDayChart');
+  const labels = Array.from({ length: 31 }, (_, i) => `${i}日目`);
+
+  if (thirtyDayChartInstance) thirtyDayChartInstance.destroy();
+  thirtyDayChartInstance = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a24', borderColor: '#2a2a3a', borderWidth: 1,
+          titleColor: '#e8e8f0', bodyColor: '#8888aa',
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString() ?? 'データなし'}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          title: { display: true, text: '発売日からの経過日数', color: '#555577', font: { size: 11 } },
+          ticks: { color: '#555577', font: { family: 'JetBrains Mono', size: 10 } },
+          grid: { color: '#1e1e2e' }
+        },
+        y: {
+          ticks: { color: '#555577', font: { family: 'JetBrains Mono', size: 10 }, callback: v => v.toLocaleString() },
+          grid: { color: '#1e1e2e' }
+        }
+      }
+    }
+  });
+}
+
+// ---- チャート作品セレクタ ----
 function updateChartSelector() {
   const sel = document.getElementById('chartWorkSelect');
   const current = sel.value;
   sel.innerHTML = '<option value="__all__">全作品合計</option>';
   Object.values(window.state.works).forEach(w => {
     const opt = document.createElement('option');
-    opt.value = w.id; opt.textContent = `${w.id} - ${w.title}`;
+    opt.value = w.id;
+    opt.textContent = `${w.id} - ${w.title}`;
     sel.appendChild(opt);
   });
   if (current && sel.querySelector(`option[value="${current}"]`)) sel.value = current;
 }
 
+// ---- 全レンダリング ----
 function renderAll() {
   renderStats();
+  updateChartSelector();
   renderChart();
   renderTable();
   renderRanking();
   renderRecent();
-  updateChartSelector();
+  renderThirtyDay();
 }
 
+// ---- パネル ----
 function togglePanel() {
   document.getElementById('inputPanel').classList.toggle('open');
   document.getElementById('overlay').classList.toggle('show');
@@ -661,23 +1050,47 @@ function togglePanel() {
 function populateWorkEntries() {
   const container = document.getElementById('workEntries');
   const works = Object.values(window.state.works);
-  if (works.length === 0) { container.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;margin-bottom:1rem;">先に作品を登録してください ↓</p>'; return; }
-  container.innerHTML = works.map(w => `
-    <div class="work-entry">
-      <div class="work-entry-title">${escapeHtml(w.title)} <span style="font-family:monospace;font-size:0.7rem;color:var(--text2)">${w.id}</span></div>
-      <div class="input-row" style="margin-top:0.6rem;">
-        <div><label class="form-label">販売数</label><input type="number" class="form-input" id="sales_${w.id}" placeholder="0"></div>
-        <div><label class="form-label">お気に入り</label><input type="number" class="form-input" id="fav_${w.id}" placeholder="0"></div>
-      </div>
-    </div>`).join('');
+  if (works.length === 0) {
+    container.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;margin-bottom:1rem;">先に作品を登録してください ↓</p>';
+    return;
+  }
+  container.innerHTML = works.map(w => {
+    const isReleased = w.is_released !== false;
+    const favField = !isReleased
+      ? `<div><label class="form-label">お気に入り</label><input type="number" class="form-input" id="fav_${w.id}" placeholder="0"></div>`
+      : `<div style="color:var(--text2);font-size:0.72rem;padding-top:1.5rem;">お気に入りは発売後非表示</div>`;
+    return `
+      <div class="work-entry">
+        <div class="work-entry-title">
+          ${escapeHtml(w.title)}
+          <span style="font-family:monospace;font-size:0.7rem;color:var(--text2)">${w.id}</span>
+          ${isReleased ? '<span class="work-badge badge-released">発売済</span>' : '<span class="work-badge badge-pre">発売前</span>'}
+        </div>
+        <div class="input-row">
+          <div><label class="form-label">販売数</label><input type="number" class="form-input" id="sales_${w.id}" placeholder="0"></div>
+          ${favField}
+        </div>
+      </div>`;
+  }).join('');
 }
 
+// ---- CSV エクスポート ----
 function exportCSV() {
   const works = Object.values(window.state.works);
   if (works.length === 0) { toast('⚠️ データがありません'); return; }
   const sorted = [...window.state.snapshots].sort((a,b) => new Date(a.ts) - new Date(b.ts));
-  const header = ['日時', ...works.flatMap(w => [`${w.id}_販売数`, `${w.id}_お気に入り`])];
-  const rows = sorted.map(s => [new Date(s.ts).toLocaleString('ja-JP'), ...works.flatMap(w => [s.records?.[w.id]?.sales||0, s.records?.[w.id]?.fav||0])]);
+  const header = ['日時', ...works.flatMap(w => [
+    `${w.id}_販売数`, `${w.id}_お気に入り`,
+    `${w.id}_販売額`, `${w.id}_卸価格`,
+    `${w.id}_評価`, `${w.id}_レビュー数`
+  ])];
+  const rows = sorted.map(s => [
+    new Date(s.ts).toLocaleString('ja-JP'),
+    ...works.flatMap(w => {
+      const r = s.records?.[w.id] || {};
+      return [r.sales||0, r.fav||0, r.sales_amount||0, r.wholesale||0, r.rating||'', r.reviews||0];
+    })
+  ]);
   const csv = [header,...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\n');
   const blob = new Blob(['\uFEFF'+csv], { type: 'text/csv;charset=utf-8' });
   const a = document.createElement('a');
