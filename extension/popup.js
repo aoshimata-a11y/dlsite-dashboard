@@ -4,62 +4,12 @@
 
 // ---- 初期化 ----
 
-document.addEventListener("DOMContentLoaded", async () => {
-  await initAuth();
+document.addEventListener("DOMContentLoaded", () => {
   initTabs();
   initCsvImport();
   initRegister();
-});
-
-// ---- 認証 ----
-
-async function initAuth() {
-  const user = await bg("GET_AUTH_STATE");
-  if (user?.uid) {
-    showMain(user);
-  } else {
-    showLogin();
-  }
-
-  document.getElementById("loginBtn")?.addEventListener("click", async () => {
-    const btn = document.getElementById("loginBtn");
-    btn.disabled = true;
-    btn.textContent = "ログイン中...";
-    const res = await bg("SIGN_IN");
-    btn.disabled = false;
-    btn.textContent = "Googleでログイン";
-    if (res?.ok) {
-      showMain(res);
-    } else {
-      const msg = document.getElementById("loginErrorMsg");
-      if (msg) msg.textContent = "❌ " + (res?.error || "ログインに失敗しました");
-    }
-  });
-
-  document.getElementById("logoutBtn")?.addEventListener("click", async () => {
-    await bg("SIGN_OUT");
-    showLogin();
-  });
-}
-
-function showLogin() {
-  document.getElementById("loginPanel").style.display = "block";
-  document.getElementById("mainPanel").style.display = "none";
-  document.getElementById("authDot").className = "auth-dot offline";
-  document.getElementById("authLabel").textContent = "未ログイン";
-  document.getElementById("logoutBtn").style.display = "none";
-  const msg = document.getElementById("loginErrorMsg");
-  if (msg) msg.textContent = "";
-}
-
-function showMain(user) {
-  document.getElementById("loginPanel").style.display = "none";
-  document.getElementById("mainPanel").style.display = "block";
-  document.getElementById("authDot").className = "auth-dot";
-  document.getElementById("authLabel").textContent = user?.displayName || user?.email || "ログイン済み";
-  document.getElementById("logoutBtn").style.display = "inline-flex";
   loadWorkList();
-}
+});
 
 // ---- タブ ----
 
