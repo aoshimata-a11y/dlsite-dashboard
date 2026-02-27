@@ -285,6 +285,33 @@
   .empty-state .emoji { font-size: 2.5rem; margin-bottom: 0.8rem; }
   .empty-state p { font-size: 0.9rem; margin-bottom: 1.2rem; }
 
+  /* ---- 作品カードグリッド ---- */
+  .work-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 0.8rem; padding: 1rem;
+  }
+  .work-card {
+    background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 10px; overflow: hidden; transition: border-color 0.2s;
+  }
+  .work-card:hover { border-color: var(--accent); }
+  .work-card-header {
+    padding: 0.8rem 0.8rem 0.6rem;
+    display: flex; align-items: flex-start; gap: 0.6rem;
+  }
+  .work-card-main { flex: 1; min-width: 0; }
+  .work-card-sales {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem; font-weight: 700; color: var(--accent3);
+  }
+  .work-card-chart { height: 64px; position: relative; padding: 0 0.4rem; }
+  .work-card-meta {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.35rem 0.8rem; border-top: 1px solid var(--border);
+    font-size: 0.74rem; color: var(--text2);
+  }
+
   .toast {
     position: fixed; bottom: 2rem; left: 50%;
     transform: translateX(-50%) translateY(80px);
@@ -380,7 +407,7 @@
               <button class="period-tab" onclick="setPeriod('day', this)">日別</button>
             </div>
             <select id="chartWorkSelect" class="form-input" style="width:auto; padding: 0.3rem 0.6rem; font-size: 0.75rem; font-family: inherit;" onchange="renderChart()">
-              <option value="__all__">全作品合計</option>
+              <option value="__all__">全作品（重ね表示）</option>
             </select>
             <div class="tabs">
               <button class="tab active" onclick="setMetric('sales', this)">販売数</button>
@@ -517,6 +544,7 @@
 window.state = { works: {}, snapshots: [] };
 let chartInstance = null;
 let thirtyDayChartInstance = null;
+let miniChartInstances = {};
 let currentMetric = 'sales';
 let currentSort = 'sales';
 let currentPeriod = 'all';
@@ -699,22 +727,32 @@ function renderChart() {
   let datasets = [];
 
   if (selectedWork === '__all__') {
-    const data = grouped.map(s =>
-      Object.values(s.records || {}).reduce((sum, r) => sum + Number(r[currentMetric] || 0), 0)
-    );
-    datasets = [{
-      label: '全作品合計', data,
-      borderColor: '#e8407a', backgroundColor: 'rgba(232,64,122,0.1)',
-      fill: true, tension: 0.4, pointRadius: 4
-    }];
+    // 各作品を異なる色の折れ線で重ねて表示
+    Object.values(window.state.works).forEach((work, idx) => {
+      const color = COLORS[idx % COLORS.length];
+      const data = grouped.map(s => Number(s.records?.[work.id]?.[currentMetric] || 0));
+      datasets.push({
+        label: work.title,
+        data,
+        borderColor: color,
+        backgroundColor: color + '22',
+        fill: false,
+        tension: 0.4,
+        pointRadius: 4
+      });
+    });
   } else {
     const work = window.state.works[selectedWork];
     const color = getWorkColor(selectedWork);
     const data = grouped.map(s => Number(s.records?.[selectedWork]?.[currentMetric] || 0));
     datasets = [{
-      label: work?.title || selectedWork, data,
-      borderColor: color, backgroundColor: color + '22',
-      fill: true, tension: 0.4, pointRadius: 4
+      label: work?.title || selectedWork,
+      data,
+      borderColor: color,
+      backgroundColor: color + '22',
+      fill: true,
+      tension: 0.4,
+      pointRadius: 4
     }];
   }
 
@@ -723,11 +761,15 @@ function renderChart() {
     type: 'line', data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { labels: { color: '#8888aa', font: { family: 'JetBrains Mono', size: 11 } } },
         tooltip: {
           backgroundColor: '#1a1a24', borderColor: '#2a2a3a', borderWidth: 1,
-          titleColor: '#e8e8f0', bodyColor: '#8888aa'
+          titleColor: '#e8e8f0', bodyColor: '#8888aa',
+          callbacks: {
+            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}`
+          }
         }
       },
       scales: {
@@ -738,10 +780,15 @@ function renderChart() {
   });
 }
 
-// ---- 作品テーブル ----
+// ---- 作品カード ----
 function renderTable() {
   const container = document.getElementById('worksTableContainer');
   const works = Object.values(window.state.works);
+
+  // 既存ミニチャートを破棄
+  Object.values(miniChartInstances).forEach(c => c.destroy());
+  miniChartInstances = {};
+
   if (works.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="emoji">🎮</div><p>作品データがありません</p><button class="btn btn-primary" onclick="togglePanel()">データ入力</button></div>`;
     return;
@@ -776,49 +823,93 @@ function renderTable() {
     return `<span class="delta-zero">—</span>`;
   };
 
-  const rankBadge = i => {
-    const cls = i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-other';
-    return `<div class="rank-badge ${cls}">${i+1}</div>`;
-  };
+  const rankCls = i => i===0?'rank-1':i===1?'rank-2':i===2?'rank-3':'rank-other';
 
-  const favCell = w => {
+  const favOrRating = w => {
     if (w.is_released === false) {
-      // 発売前: お気に入り数を表示
-      return `<td class="num-cell">${w.fav.toLocaleString()}</td><td>${deltaHTML(w.favDelta)}</td>`;
-    } else {
-      // 発売後: 評価スコア＋レビュー数
-      const rating = w.rating !== null ? `★${Number(w.rating).toFixed(1)}` : '—';
-      const reviews = w.reviews !== null ? `(${w.reviews.toLocaleString()}件)` : '';
-      return `<td class="num-cell">${rating} <span style="font-size:0.7rem;color:var(--text2);">${reviews}</span></td><td></td>`;
+      return `♥ ${w.fav.toLocaleString()}${w.favDelta !== 0 ? ' ' + deltaHTML(w.favDelta) : ''}`;
     }
+    const rating = w.rating !== null ? `★${Number(w.rating).toFixed(1)}` : '—';
+    const reviews = w.reviews !== null ? ` (${w.reviews.toLocaleString()}件)` : '';
+    return rating + reviews;
   };
 
-  const badge = w => {
-    if (w.is_released === false) return `<span class="work-badge badge-pre">発売前</span>`;
-    return `<span class="work-badge badge-released">発売済</span>`;
-  };
+  const badgeHtml = w => w.is_released === false
+    ? `<span class="work-badge badge-pre">発売前</span>`
+    : `<span class="work-badge badge-released">発売済</span>`;
 
-  container.innerHTML = `<table class="works-table">
-    <thead><tr>
-      <th>#</th>
-      <th>作品</th>
-      <th>販売数</th>
-      <th>増減</th>
-      <th>お気に入り/評価</th>
-      <th>増減</th>
-    </tr></thead>
-    <tbody>${stats.map((w,i) => `<tr>
-      <td>${rankBadge(i)}</td>
-      <td>
-        <div class="work-title-cell">${escapeHtml(w.title)}</div>
-        <span class="work-id">${w.id}</span>
-        ${badge(w)}
-      </td>
-      <td class="num-cell">${w.sales.toLocaleString()}</td>
-      <td>${deltaHTML(w.salesDelta)}</td>
-      ${favCell(w)}
-    </tr>`).join('')}</tbody>
-  </table>`;
+  container.innerHTML = `<div class="work-cards">${stats.map((w, i) => `
+    <div class="work-card">
+      <div class="work-card-header">
+        <div class="rank-badge ${rankCls(i)}">${i+1}</div>
+        <div class="work-card-main">
+          <div class="work-title-cell">${escapeHtml(w.title)}</div>
+          <span class="work-id">${w.id}</span>
+          ${badgeHtml(w)}
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div class="work-card-sales">${w.sales.toLocaleString()}</div>
+          <div style="font-size:0.7rem;margin-top:2px;">${deltaHTML(w.salesDelta)}</div>
+        </div>
+      </div>
+      <div class="work-card-chart">
+        <canvas id="mini-chart-${w.id}"></canvas>
+      </div>
+      <div class="work-card-meta">
+        <span>${favOrRating(w)}</span>
+        <span style="font-size:0.65rem;color:var(--text2);">販売推移</span>
+      </div>
+    </div>`).join('')}</div>`;
+
+  // ミニスパークラインを描画
+  stats.forEach(w => renderMiniChart(w.id));
+}
+
+// ---- ミニスパークライン ----
+function renderMiniChart(workId) {
+  const canvas = document.getElementById(`mini-chart-${workId}`);
+  if (!canvas) return;
+
+  const sorted = [...window.state.snapshots].sort((a,b) => new Date(a.ts) - new Date(b.ts));
+  const labels = sorted.map(s => formatLabel(s.ts, 'day'));
+  const data = sorted.map(s => Number(s.records?.[workId]?.sales || 0));
+
+  const color = getWorkColor(workId);
+  const title = window.state.works[workId]?.title || workId;
+
+  if (miniChartInstances[workId]) miniChartInstances[workId].destroy();
+  miniChartInstances[workId] = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        borderColor: color,
+        backgroundColor: color + '33',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 0,
+        borderWidth: 1.5
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a24', borderColor: '#2a2a3a', borderWidth: 1,
+          titleColor: '#e8e8f0', bodyColor: '#8888aa',
+          callbacks: {
+            title: items => labels[items[0].dataIndex],
+            label: ctx => `${title}: ${ctx.parsed.y.toLocaleString()}`
+          }
+        }
+      },
+      scales: { x: { display: false }, y: { display: false } }
+    }
+  });
 }
 
 // ---- ランキング ----
@@ -1016,7 +1107,7 @@ function renderThirtyDay() {
 function updateChartSelector() {
   const sel = document.getElementById('chartWorkSelect');
   const current = sel.value;
-  sel.innerHTML = '<option value="__all__">全作品合計</option>';
+  sel.innerHTML = '<option value="__all__">全作品（重ね表示）</option>';
   Object.values(window.state.works).forEach(w => {
     const opt = document.createElement('option');
     opt.value = w.id;
