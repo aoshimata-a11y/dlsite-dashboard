@@ -13,36 +13,37 @@
   const workId = extractWorkId(location.href);
   if (!workId) return;
 
-  // ページ読み込み完了後にキャプチャ
-  if (document.readyState === "complete") {
-    captureAndSend();
-  } else {
-    window.addEventListener("load", captureAndSend);
-  }
-
   function extractWorkId(url) {
     const match = url.match(/product_id[=/](RJ\d+|VJ\d+|BJ\d+)/i);
     return match ? match[1].toUpperCase() : null;
   }
 
-  function captureAndSend() {
-    const data = scrapeWorkPage();
-    if (!data) return;
+  // background.js または popup.js からの CAPTURE_NOW メッセージを待ち受ける
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    if (msg.type !== "CAPTURE_NOW") return false;
 
-    // background.js 経由でFirebaseに保存
-    chrome.runtime.sendMessage({
-      type: "WORK_DATA_CAPTURED",
-      workId,
-      data
-    });
+    const doCapture = () => {
+      const data = scrapeWorkPage();
+      sendResponse(data ? { ok: true, workId, data } : { ok: false, workId });
+    };
 
-    // ポップアップへも通知（開いていれば）
-    chrome.runtime.sendMessage({
-      type: "CAPTURE_COMPLETE",
-      workId,
-      data
-    });
-  }
+    if (document.readyState === "complete") {
+      doCapture();
+    } else {
+      // ページ読み込み完了まで待機（タイムアウト10秒）
+      let done = false;
+      const onLoad = () => { if (!done) { done = true; doCapture(); } };
+      window.addEventListener("load", onLoad, { once: true });
+      setTimeout(() => {
+        if (!done) {
+          done = true;
+          window.removeEventListener("load", onLoad);
+          sendResponse({ ok: false, workId, error: "タイムアウト" });
+        }
+      }, 10_000);
+    }
+    return true; // 非同期 sendResponse のためチャンネルを維持
+  });
 
   function scrapeWorkPage() {
     try {

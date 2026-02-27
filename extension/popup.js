@@ -120,8 +120,9 @@ async function captureCurrentPage() {
 
   setStatus("captureStatus", "現在のページをキャプチャ中...");
   // content-work.js に対してページキャプチャを要求
-  chrome.tabs.sendMessage(tab.id, { type: "CAPTURE_NOW" }, (response) => {
-    if (response?.ok) {
+  chrome.tabs.sendMessage(tab.id, { type: "CAPTURE_NOW" }, async (response) => {
+    if (response?.ok && response?.data) {
+      await bg("SAVE_WORK_SNAPSHOT", { workId: response.workId, data: response.data });
       setStatus("captureStatus", "✅ キャプチャして保存しました", "ok");
     } else {
       setStatus("captureStatus", "ページを再読み込みしてから試してください", "error");

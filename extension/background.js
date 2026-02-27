@@ -110,10 +110,20 @@ async function handleMessage(msg, sender) {
       for (const id of workIds) {
         const url = `https://www.dlsite.com/home/work/=/product_id/${id}.html`;
         const tab = await chrome.tabs.create({ url, active: false });
-        const data = await waitForCapture(tab.id, id, 15_000);
-        if (data) results[id] = data;
-        await chrome.tabs.remove(tab.id);
-        await sleep(1000);
+        try {
+          const loaded = await waitForTabComplete(tab.id, 20_000);
+          if (loaded) {
+            const response = await Promise.race([
+              chrome.tabs.sendMessage(tab.id, { type: 'CAPTURE_NOW' }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error('キャプチャタイムアウト')), 10_000))
+            ]);
+            if (response?.ok && response?.data) results[id] = response.data;
+          }
+        } catch (e) {
+          console.warn(`[DLsite Dashboard] ${id} キャプチャ失敗:`, e.message);
+        }
+        await chrome.tabs.remove(tab.id).catch(() => {});
+        await sleep(500);
       }
       if (Object.keys(results).length > 0) {
         await saveSnapshot(results, new Date().toISOString());
@@ -121,39 +131,27 @@ async function handleMessage(msg, sender) {
       return { ok: true, captured: Object.keys(results).length };
     }
 
-    // content-work.js からのキャプチャ通知（background が仲介するだけ）
-    case 'WORK_DATA_CAPTURED':
-      return { ok: true };
-
     default:
       return { error: `Unknown message type: ${msg.type}` };
   }
 }
 
 // ============================================================
-// タブキャプチャ待機
+// タブ読み込み完了待機（ポーリング方式）
 // ============================================================
 
-function waitForCapture(tabId, workId, timeoutMs) {
-  return new Promise(resolve => {
-    const timer = setTimeout(() => {
-      chrome.runtime.onMessage.removeListener(handler);
-      resolve(null);
-    }, timeoutMs);
-
-    function handler(msg, sender) {
-      if (
-        msg.type === 'WORK_DATA_CAPTURED' &&
-        msg.workId === workId &&
-        sender.tab?.id === tabId
-      ) {
-        clearTimeout(timer);
-        chrome.runtime.onMessage.removeListener(handler);
-        resolve(msg.data);
-      }
+async function waitForTabComplete(tabId, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      const tab = await chrome.tabs.get(tabId);
+      if (tab.status === 'complete') return true;
+    } catch {
+      return false; // タブが閉じられた or 存在しない
     }
-    chrome.runtime.onMessage.addListener(handler);
-  });
+    await sleep(500);
+  }
+  return false;
 }
 
 function sleep(ms) {
