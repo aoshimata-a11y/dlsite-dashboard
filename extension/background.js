@@ -11,30 +11,42 @@ const DB_URL = 'https://dlsite-dashboard-default-rtdb.firebaseio.com';
 // Firebase Realtime Database REST API
 // ============================================================
 
-async function dbGet(path) {
-  const res = await fetch(`${DB_URL}/${path}.json`);
-  if (!res.ok) throw new Error(`DB取得エラー: ${res.status}`);
+async function firebaseFetch(url, options) {
+  let res;
+  try {
+    res = await fetch(url, options);
+  } catch (e) {
+    throw new Error(`ネットワークエラー: ${e.message}`);
+  }
+  if (!res.ok) {
+    let msg = `HTTP ${res.status}`;
+    try {
+      const body = await res.json();
+      if (body && body.error) msg = body.error;
+    } catch (_) { /* ignore */ }
+    throw new Error(msg);
+  }
   return res.json();
 }
 
+async function dbGet(path) {
+  return firebaseFetch(`${DB_URL}/${path}.json`);
+}
+
 async function dbSet(path, data) {
-  const res = await fetch(`${DB_URL}/${path}.json`, {
+  return firebaseFetch(`${DB_URL}/${path}.json`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
-  if (!res.ok) throw new Error(`DB書き込みエラー: ${res.status}`);
-  return res.json();
 }
 
 async function dbPush(path, data) {
-  const res = await fetch(`${DB_URL}/${path}.json`, {
+  return firebaseFetch(`${DB_URL}/${path}.json`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
   });
-  if (!res.ok) throw new Error(`DBプッシュエラー: ${res.status}`);
-  return res.json();
 }
 
 // ============================================================

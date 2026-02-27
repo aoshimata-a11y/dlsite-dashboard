@@ -8,6 +8,9 @@ document.addEventListener("DOMContentLoaded", () => {
   initTabs();
   initCsvImport();
   initRegister();
+  // キャプチャボタンは一度だけ登録
+  document.getElementById("captureAllBtn").addEventListener("click", captureAll);
+  document.getElementById("capturePageBtn").addEventListener("click", captureCurrentPage);
   loadWorkList();
 });
 
@@ -32,14 +35,20 @@ let works = {};
 async function loadWorkList() {
   const list = document.getElementById("workList");
   try {
-    works = await bg("GET_WORKS");
-    if (!works || Object.keys(works).length === 0) {
+    const res = await bg("GET_WORKS");
+    // background.js がエラーを返した場合（{ error: "..." }）
+    if (res && res.error) {
+      list.innerHTML = `<div class="status-msg error">❌ Firebase接続エラー:<br><small>${escHtml(res.error)}</small><br><small style="font-size:9px;margin-top:4px;display:block;">Firebaseのセキュリティルールで<br>読み書きを許可してください</small></div>`;
+      return;
+    }
+    works = res || {};
+    if (Object.keys(works).length === 0) {
       list.innerHTML = `<div class="status-msg">作品が登録されていません<br><small style="font-size:10px;">「作品登録」タブから追加してください</small></div>`;
       return;
     }
     renderWorkList();
   } catch (e) {
-    list.innerHTML = `<div class="status-msg error">❌ 読み込み失敗</div>`;
+    list.innerHTML = `<div class="status-msg error">❌ 読み込み失敗: ${escHtml(e.message)}</div>`;
   }
 }
 
@@ -60,10 +69,6 @@ function renderWorkList() {
       </div>
     `;
   }).join("");
-
-  // キャプチャボタン設定
-  document.getElementById("captureAllBtn").addEventListener("click", captureAll);
-  document.getElementById("capturePageBtn").addEventListener("click", captureCurrentPage);
 }
 
 // ---- キャプチャ ----
@@ -80,16 +85,20 @@ async function captureAll() {
   fill.style.width = "0%";
   setStatus("captureStatus", `全作品更新中... (0/${workIds.length})`);
 
-  let done = 0;
-  // background.jsで一括処理
-  const res = await bg("OPEN_WORK_TABS", { workIds });
-  done = workIds.length;
-  fill.style.width = "100%";
+  try {
+    // background.jsで一括処理
+    const res = await bg("OPEN_WORK_TABS", { workIds });
+    fill.style.width = "100%";
 
-  if (res?.ok) {
-    setStatus("captureStatus", `✅ ${res.captured}作品 更新完了`, "ok");
-  } else {
-    setStatus("captureStatus", `❌ エラー: ${res?.error || ""}`, "error");
+    if (res?.ok) {
+      setStatus("captureStatus", `✅ ${res.captured}作品 更新完了`, "ok");
+    } else {
+      const errMsg = res?.error || "不明なエラー";
+      setStatus("captureStatus", `❌ エラー: ${errMsg}`, "error");
+    }
+  } catch (e) {
+    fill.style.width = "0%";
+    setStatus("captureStatus", `❌ エラー: ${e.message}`, "error");
   }
 
   setTimeout(() => {
@@ -330,8 +339,7 @@ async function registerWork() {
     setStatus("regStatus", `✅ 「${title}」を登録しました`, "ok");
     document.getElementById("regWorkId").value = "";
     document.getElementById("regTitle").value = "";
-    works = await bg("GET_WORKS");
-    renderWorkList();
+    await loadWorkList();
   } else {
     setStatus("regStatus", `❌ エラー: ${res?.error || ""}`, "error");
   }
