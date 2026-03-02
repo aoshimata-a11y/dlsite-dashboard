@@ -328,6 +328,17 @@
   }
   .firebase-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent3); }
 
+  /* ---- CSVドロップエリア ---- */
+  .csv-drop-area {
+    border: 2px dashed var(--border); border-radius: 10px;
+    padding: 1.5rem 1rem; text-align: center; cursor: pointer;
+    font-size: 0.85rem; color: var(--text2); transition: all 0.2s;
+    margin-bottom: 0.8rem;
+  }
+  .csv-drop-area:hover, .csv-drop-area.drag-over {
+    border-color: var(--accent2); color: var(--accent2); background: rgba(123,79,255,0.05);
+  }
+
   @media (max-width: 1100px) {
     .main-grid { grid-template-columns: 1fr; }
     .stats-grid { grid-template-columns: repeat(2, 1fr); }
@@ -367,7 +378,7 @@
     </div>
     <span class="last-update" id="lastUpdate">読み込み中...</span>
     <button class="btn" id="authBtn" onclick="handleAuth()">ログイン</button>
-    <button class="btn" onclick="togglePanel()">📝 データ入力</button>
+    <button class="btn" onclick="togglePanel()">📥 データ管理</button>
     <button class="btn btn-primary" onclick="exportCSV()">📊 CSV出力</button>
   </div>
 </header>
@@ -462,20 +473,6 @@
         </div>
       </div>
 
-      <div class="card">
-        <div class="card-header"><span class="card-title">Chrome拡張との連携</span></div>
-        <div class="card-body">
-          <div style="background: rgba(123,79,255,0.1); border: 1px solid rgba(123,79,255,0.3); border-radius: 8px; padding: 1rem; font-size: 0.8rem; color: var(--text2); line-height: 1.7;">
-            <strong style="color: var(--accent2);">拡張機能の使い方：</strong><br>
-            1. DLsiteの作品ページを開く<br>
-            2. 拡張アイコンをクリック<br>
-            3. <strong style="color:var(--accent2);">「全作品を更新」</strong>で自動取得<br>
-            4. 管理画面CSVをインポート可能<br><br>
-            <span style="color: var(--accent3);">✓ 評価・レビュー・お気に入りを自動取得</span><br>
-            <span style="color: var(--accent3);">✓ Firebaseでリアルタイム同期</span>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -493,22 +490,32 @@
 
 </main>
 
-<!-- データ入力パネル -->
+<!-- データ管理パネル -->
 <div class="overlay" id="overlay" onclick="togglePanel()"></div>
 <div class="input-panel" id="inputPanel">
   <div class="panel-header">
-    <span style="font-weight: 700; font-size: 0.95rem;">📝 データ入力</span>
+    <span style="font-weight: 700; font-size: 0.95rem;">📥 データ管理</span>
     <button class="btn" onclick="togglePanel()">✕ 閉じる</button>
   </div>
   <div class="panel-body">
 
-    <div class="section-title">スナップショット追加</div>
-    <div class="form-group">
-      <label class="form-label">記録日時</label>
-      <input type="datetime-local" class="form-input" id="snapDate">
+    <div class="section-title">DLsite管理画面CSVインポート</div>
+    <div id="csvDateNote" style="display:none; font-size:0.72rem; color:var(--accent3); margin-bottom:0.5rem;"></div>
+    <div id="csvDateGroup" class="form-group">
+      <label class="form-label">記録日付</label>
+      <input type="date" class="form-input" id="csvDateInput">
     </div>
-    <div id="workEntries"></div>
-    <button class="btn btn-primary" onclick="saveSnapshot()" style="width:100%; margin-bottom: 2rem;">💾 Firebaseに保存</button>
+    <div class="csv-drop-area" id="csvDropArea">
+      <div>📂 CSVファイルをドロップ</div>
+      <div style="font-size:11px;margin-top:6px;">またはクリックして選択（Shift-JIS）</div>
+      <input type="file" id="csvFileInput" accept=".csv" style="display:none;">
+    </div>
+    <div id="csvPreview" style="display:none; margin-bottom:0.8rem;">
+      <div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text2);margin-bottom:0.4rem;">プレビュー（先頭5件）</div>
+      <div id="csvPreviewTable" style="overflow-x:auto; font-size:11px; font-family:'JetBrains Mono',monospace;"></div>
+    </div>
+    <div id="csvStatus" style="font-size:0.78rem; margin:0.4rem 0; min-height:1.2rem;"></div>
+    <button class="btn btn-primary" id="csvImportBtn" onclick="executeCsvImport()" style="width:100%; margin-bottom:2rem;">インポート実行</button>
 
     <div class="section-title">作品登録・更新</div>
     <div class="form-group">
@@ -622,37 +629,6 @@ async function registerWork() {
   document.getElementById('newWorkTitle').value = '';
   document.getElementById('newReleaseDate').value = '';
   toast(`✅ 「${title}」を登録しました`);
-  populateWorkEntries();
-}
-
-async function saveSnapshot() {
-  const ts = document.getElementById('snapDate').value;
-  if (!ts) { toast('⚠️ 日時を入力してください'); return; }
-
-  const works = Object.values(window.state.works);
-  if (works.length === 0) { toast('⚠️ 作品を登録してください'); return; }
-
-  const records = {};
-  let hasData = false;
-
-  works.forEach(w => {
-    const salesEl = document.getElementById(`sales_${w.id}`);
-    const favEl = document.getElementById(`fav_${w.id}`);
-    const rec = {};
-    if (salesEl?.value !== '') rec.sales = Number(salesEl.value) || 0;
-    if (favEl?.value !== '') rec.fav = Number(favEl.value) || 0;
-    if (Object.keys(rec).length > 0) {
-      records[w.id] = rec;
-      hasData = true;
-    }
-  });
-
-  if (!hasData) { toast('⚠️ データを入力してください'); return; }
-
-  const snap = { ts: new Date(ts).toISOString(), records };
-  await window.firebasePush(window.firebaseRef(window.firebaseDb, 'dashboard/snapshots'), snap);
-  toast(`✅ 保存しました（${Object.keys(records).length}作品）`);
-  togglePanel();
 }
 
 async function clearAllData() {
@@ -1132,39 +1108,227 @@ function renderAll() {
 function togglePanel() {
   document.getElementById('inputPanel').classList.toggle('open');
   document.getElementById('overlay').classList.toggle('show');
-  if (document.getElementById('inputPanel').classList.contains('open')) {
-    const now = new Date();
-    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-    document.getElementById('snapDate').value = now.toISOString().slice(0,16);
-    populateWorkEntries();
-  }
 }
 
-function populateWorkEntries() {
-  const container = document.getElementById('workEntries');
-  const works = Object.values(window.state.works);
-  if (works.length === 0) {
-    container.innerHTML = '<p style="color:var(--text2);font-size:0.82rem;margin-bottom:1rem;">先に作品を登録してください ↓</p>';
+// ---- CSV インポート ----
+let _csvParsedRecords = null;
+let _csvParsedWorks = null;
+
+document.addEventListener('DOMContentLoaded', () => {
+  const dropArea = document.getElementById('csvDropArea');
+  const fileInput = document.getElementById('csvFileInput');
+  dropArea.addEventListener('click', () => fileInput.click());
+  fileInput.addEventListener('change', e => handleCsvFile(e.target.files[0]));
+  dropArea.addEventListener('dragover', e => { e.preventDefault(); dropArea.classList.add('drag-over'); });
+  dropArea.addEventListener('dragleave', () => dropArea.classList.remove('drag-over'));
+  dropArea.addEventListener('drop', e => {
+    e.preventDefault();
+    dropArea.classList.remove('drag-over');
+    handleCsvFile(e.dataTransfer.files[0]);
+  });
+  // 本日の日付をデフォルトに設定
+  document.getElementById('csvDateInput').value = new Date().toISOString().slice(0, 10);
+});
+
+function handleCsvFile(file) {
+  if (!file) return;
+  const dateFromName = extractDateFromFilename(file.name);
+  const dateInput = document.getElementById('csvDateInput');
+  const dateGroup = document.getElementById('csvDateGroup');
+  const dateNote = document.getElementById('csvDateNote');
+  if (dateFromName) {
+    dateInput.value = dateFromName;
+    dateGroup.style.display = 'none';
+    dateNote.textContent = `ファイル名から日付を取得: ${dateFromName}`;
+    dateNote.style.display = 'block';
+  } else {
+    dateGroup.style.display = 'block';
+    dateNote.style.display = 'none';
+  }
+  document.getElementById('csvPreview').style.display = 'none';
+  setCsvStatus('読み込み中...');
+  _csvParsedRecords = null;
+  _csvParsedWorks = null;
+  const reader = new FileReader();
+  reader.onload = e => parseCsvText(e.target.result);
+  reader.onerror = () => setCsvStatus('❌ ファイルの読み込みに失敗しました', 'error');
+  reader.readAsText(file, 'Shift_JIS');
+}
+
+function extractDateFromFilename(name) {
+  const m = name.match(/(\d{4})(\d{2})(\d{2})/);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+function parseCsvText(text) {
+  // BOM除去
+  const clean = text.replace(/^\uFEFF/, '');
+  const lines = clean.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) {
+    setCsvStatus('⚠️ データが見つかりません', 'error');
     return;
   }
-  container.innerHTML = works.map(w => {
-    const isReleased = w.is_released !== false;
-    const favField = !isReleased
-      ? `<div><label class="form-label">お気に入り</label><input type="number" class="form-input" id="fav_${w.id}" placeholder="0"></div>`
-      : `<div style="color:var(--text2);font-size:0.72rem;padding-top:1.5rem;">お気に入りは発売後非表示</div>`;
-    return `
-      <div class="work-entry">
-        <div class="work-entry-title">
-          ${escapeHtml(w.title)}
-          <span style="font-family:monospace;font-size:0.7rem;color:var(--text2)">${w.id}</span>
-          ${isReleased ? '<span class="work-badge badge-released">発売済</span>' : '<span class="work-badge badge-pre">発売前</span>'}
-        </div>
-        <div class="input-row">
-          <div><label class="form-label">販売数</label><input type="number" class="form-input" id="sales_${w.id}" placeholder="0"></div>
-          ${favField}
-        </div>
-      </div>`;
-  }).join('');
+
+  // 列定義: サークルID(0), サークル名(1), 販売サイト(2), 作品ID(3), 作品名(4),
+  //         販売価格(5), 卸価格(6), 販売本数(7), 売上金額(8)
+  const COL_WORK_ID    = 3;
+  const COL_WORK_TITLE = 4;
+  const COL_WHOLESALE  = 6;
+  const COL_SALES      = 7;
+  const COL_AMOUNT     = 8;
+
+  const records = {};
+  const works   = {};
+  let skipped = 0;
+
+  for (const line of lines.slice(1)) {
+    const row = parseCsvLine(line);
+    const rawId = row[COL_WORK_ID]?.trim() || '';
+    const workId = rawId.toUpperCase();
+
+    // TOTALスキップ
+    if (!workId || /TOTAL/i.test(workId)) { skipped++; continue; }
+    // RJ/BJ/VJ/AJ のみ
+    if (!/^[RBVA]J\d+/i.test(workId)) { skipped++; continue; }
+
+    const title = row[COL_WORK_TITLE]?.trim() || workId;
+    records[workId] = {
+      sales:        parseCsvInt(row[COL_SALES]),
+      sales_amount: parseCsvInt(row[COL_AMOUNT]),
+      wholesale:    parseCsvInt(row[COL_WHOLESALE])
+    };
+    works[workId] = { id: workId, title };
+  }
+
+  _csvParsedRecords = records;
+  _csvParsedWorks   = works;
+
+  const workCount = Object.keys(records).length;
+  if (workCount === 0) {
+    setCsvStatus('⚠️ 有効な作品が見つかりません（RJ/BJ/VJ/AJ形式の作品IDが必要です）', 'error');
+    return;
+  }
+
+  // プレビュー（先頭5件）
+  const previewRows = Object.entries(records).slice(0, 5).map(([id, r]) =>
+    `<tr>
+      <td style="padding:2px 6px;border:1px solid var(--border);">${escapeHtml(id)}</td>
+      <td style="padding:2px 6px;border:1px solid var(--border);">${escapeHtml(works[id].title)}</td>
+      <td style="padding:2px 6px;border:1px solid var(--border);text-align:right;">${r.sales.toLocaleString()}</td>
+      <td style="padding:2px 6px;border:1px solid var(--border);text-align:right;">¥${r.sales_amount.toLocaleString()}</td>
+      <td style="padding:2px 6px;border:1px solid var(--border);text-align:right;">¥${r.wholesale.toLocaleString()}</td>
+    </tr>`
+  ).join('');
+
+  document.getElementById('csvPreviewTable').innerHTML =
+    `<table style="border-collapse:collapse;width:100%;">
+      <thead><tr>
+        <th style="padding:2px 6px;border:1px solid var(--border);color:var(--text2);">作品ID</th>
+        <th style="padding:2px 6px;border:1px solid var(--border);color:var(--text2);">タイトル</th>
+        <th style="padding:2px 6px;border:1px solid var(--border);color:var(--text2);">販売本数</th>
+        <th style="padding:2px 6px;border:1px solid var(--border);color:var(--text2);">売上金額</th>
+        <th style="padding:2px 6px;border:1px solid var(--border);color:var(--text2);">卸価格</th>
+      </tr></thead>
+      <tbody>${previewRows}</tbody>
+    </table>`;
+  document.getElementById('csvPreview').style.display = 'block';
+  setCsvStatus(`${workCount}作品を読み込みました${skipped > 0 ? `（${skipped}行スキップ）` : ''}`);
+}
+
+function parseCsvLine(line) {
+  const result = [];
+  let current = '', inQuote = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      if (inQuote && line[i+1] === '"') { current += '"'; i++; }
+      else inQuote = !inQuote;
+    } else if (ch === ',' && !inQuote) {
+      result.push(current); current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function parseCsvInt(str) {
+  const val = parseInt(String(str || '').replace(/[¥,\s円]/g, ''), 10);
+  return isNaN(val) ? 0 : val;
+}
+
+function setCsvStatus(msg, type = '') {
+  const el = document.getElementById('csvStatus');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = type === 'error' ? 'var(--accent)' : type === 'ok' ? 'var(--accent3)' : 'var(--text2)';
+}
+
+async function executeCsvImport() {
+  if (!_csvParsedRecords || Object.keys(_csvParsedRecords).length === 0) {
+    setCsvStatus('⚠️ 先にCSVファイルを読み込んでください', 'error');
+    return;
+  }
+  const dateVal = document.getElementById('csvDateInput').value;
+  if (!dateVal) {
+    setCsvStatus('⚠️ 記録日付を入力してください', 'error');
+    return;
+  }
+
+  const dateKey = dateVal; // YYYY-MM-DD をFirebaseキーとして使用
+  const ts = new Date(`${dateVal}T00:00:00`).toISOString();
+
+  // 同じ日付のデータが既にあるか確認
+  const existing = await window.firebaseGet(
+    window.firebaseRef(window.firebaseDb, `dashboard/snapshots/${dateKey}`)
+  );
+  if (existing.val()) {
+    const ok = confirm(`${dateVal} のデータが既に存在します。上書きしますか？`);
+    if (!ok) { setCsvStatus('キャンセルしました'); return; }
+  }
+
+  setCsvStatus('インポート中...');
+  document.getElementById('csvImportBtn').disabled = true;
+
+  try {
+    // スナップショットを保存（日付キーで上書き可能に）
+    await window.firebaseSet(
+      window.firebaseRef(window.firebaseDb, `dashboard/snapshots/${dateKey}`),
+      { ts, records: _csvParsedRecords }
+    );
+
+    // 未登録の作品を自動追加（既存データは変更しない）
+    let newWorksCount = 0;
+    for (const [workId, info] of Object.entries(_csvParsedWorks)) {
+      const snap = await window.firebaseGet(
+        window.firebaseRef(window.firebaseDb, `dashboard/works/${workId}`)
+      );
+      if (!snap.val()) {
+        await window.firebaseSet(
+          window.firebaseRef(window.firebaseDb, `dashboard/works/${workId}`),
+          { id: workId, title: info.title, release_date: null, is_released: true }
+        );
+        newWorksCount++;
+      }
+    }
+
+    const count = Object.keys(_csvParsedRecords).length;
+    setCsvStatus(
+      `✅ インポート完了: ${count}作品${newWorksCount > 0 ? `、新規登録 ${newWorksCount}作品` : ''}`,
+      'ok'
+    );
+    toast(`✅ ${dateVal} のデータをインポートしました`);
+
+    // リセット
+    document.getElementById('csvFileInput').value = '';
+    document.getElementById('csvPreview').style.display = 'none';
+    _csvParsedRecords = null;
+    _csvParsedWorks   = null;
+  } catch (e) {
+    setCsvStatus(`❌ エラー: ${e.message}`, 'error');
+  }
+  document.getElementById('csvImportBtn').disabled = false;
 }
 
 // ---- CSV エクスポート ----
