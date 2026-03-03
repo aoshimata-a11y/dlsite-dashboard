@@ -56,16 +56,16 @@
   @import url('https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap');
 
   :root {
-    --bg: #0a0a0f;
-    --bg2: #111118;
-    --bg3: #1a1a24;
-    --border: #2a2a3a;
-    --accent: #e8407a;
-    --accent2: #7b4fff;
-    --accent3: #00d4aa;
-    --text: #e8e8f0;
-    --text2: #8888aa;
-    --gold: #f5c842;
+    --bg: #f4f4f9;
+    --bg2: #ffffff;
+    --bg3: #eeeef6;
+    --border: #d8d8ea;
+    --accent: #d62f67;
+    --accent2: #6a3fe8;
+    --accent3: #009e7e;
+    --text: #1a1a2e;
+    --text2: #6060a0;
+    --gold: #b8860b;
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -79,7 +79,7 @@
 
   /* ---- ログインオーバーレイ ---- */
   .login-overlay {
-    position: fixed; inset: 0; background: rgba(10,10,15,0.97);
+    position: fixed; inset: 0; background: rgba(244,244,249,0.97);
     z-index: 999; display: flex; align-items: center; justify-content: center;
   }
   .login-box {
@@ -89,12 +89,12 @@
   .login-box h2 { font-size: 1.3rem; margin-bottom: 0.5rem; }
   .login-box p { color: var(--text2); font-size: 0.85rem; margin-bottom: 2rem; line-height: 1.7; }
   .login-input {
-    width: 100%; background: #0a0a0f; border: 1px solid #2a2a3a;
-    border-radius: 8px; padding: 0.7rem 1rem; color: #e8e8f0;
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 8px; padding: 0.7rem 1rem; color: var(--text);
     font-size: 0.9rem; text-align: center; font-family: inherit;
     margin-bottom: 0.5rem; transition: border-color 0.2s;
   }
-  .login-input:focus { outline: none; border-color: #7b4fff; }
+  .login-input:focus { outline: none; border-color: var(--accent2); }
   .login-error { color: #e8407a; font-size: 0.8rem; min-height: 1.2rem; margin-bottom: 0.5rem; }
   .btn-login {
     display: block; width: 100%; padding: 0.7rem 2rem; border-radius: 8px;
@@ -107,7 +107,7 @@
   /* ---- ヘッダー ---- */
   header {
     position: sticky; top: 0; z-index: 100;
-    background: rgba(10,10,15,0.95);
+    background: rgba(255,255,255,0.92);
     backdrop-filter: blur(20px);
     border-bottom: 1px solid var(--border);
     padding: 0 2rem;
@@ -198,17 +198,17 @@
     text-transform: uppercase; letter-spacing: 0.08em;
     padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border);
   }
-  .works-table td { padding: 0.7rem 0.8rem; font-size: 0.85rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
-  .works-table tr:hover td { background: rgba(255,255,255,0.03); }
+  .works-table td { padding: 0.7rem 0.8rem; font-size: 0.85rem; border-bottom: 1px solid rgba(0,0,0,0.05); }
+  .works-table tr:hover td { background: rgba(0,0,0,0.02); }
 
   .rank-badge {
     font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
     width: 28px; height: 28px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center; font-weight: 700;
   }
-  .rank-1 { background: rgba(245,200,66,0.15); color: var(--gold); border: 1px solid var(--gold); }
-  .rank-2 { background: rgba(180,180,200,0.1); color: #c0c0d0; border: 1px solid #555; }
-  .rank-3 { background: rgba(200,120,80,0.1); color: #cd7f50; border: 1px solid #8b5030; }
+  .rank-1 { background: rgba(184,134,11,0.12); color: var(--gold); border: 1px solid rgba(184,134,11,0.5); }
+  .rank-2 { background: rgba(120,120,160,0.1); color: #777799; border: 1px solid #aaaacc; }
+  .rank-3 { background: rgba(180,100,60,0.1); color: #a0602a; border: 1px solid #c08060; }
   .rank-other { background: var(--bg3); color: var(--text2); border: 1px solid var(--border); }
 
   .work-title-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 700; }
@@ -216,15 +216,15 @@
   .work-badge {
     display: inline-block; font-size: 0.6rem; padding: 0.1rem 0.4rem; border-radius: 3px; margin-top: 3px;
   }
-  .badge-released { background: rgba(0,212,170,0.1); color: var(--accent3); border: 1px solid rgba(0,212,170,0.3); }
-  .badge-pre { background: rgba(245,200,66,0.1); color: var(--gold); border: 1px solid rgba(245,200,66,0.3); }
+  .badge-released { background: rgba(0,158,126,0.1); color: var(--accent3); border: 1px solid rgba(0,158,126,0.3); }
+  .badge-pre { background: rgba(184,134,11,0.1); color: var(--gold); border: 1px solid rgba(184,134,11,0.3); }
   .num-cell { font-family: 'JetBrains Mono', monospace; font-weight: 700; }
   .fav-na { color: var(--text2); font-size: 0.72rem; }
 
   .delta-pill { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; font-family: 'JetBrains Mono', monospace; }
-  .delta-up { background: rgba(0,212,170,0.1); color: var(--accent3); }
+  .delta-up { background: rgba(0,158,126,0.12); color: var(--accent3); }
   .delta-zero { color: var(--text2); }
-  .delta-down { background: rgba(232,64,122,0.1); color: var(--accent); }
+  .delta-down { background: rgba(214,47,103,0.1); color: var(--accent); }
 
   .chart-container { position: relative; height: 260px; }
 
@@ -265,7 +265,7 @@
   .form-group { margin-bottom: 1.2rem; }
   .form-label { display: block; font-size: 0.75rem; color: var(--text2); margin-bottom: 0.4rem; text-transform: uppercase; letter-spacing: 0.06em; }
   .form-input {
-    width: 100%; background: var(--bg); border: 1px solid var(--border);
+    width: 100%; background: var(--bg3); border: 1px solid var(--border);
     border-radius: 8px; padding: 0.6rem 0.8rem; color: var(--text);
     font-family: 'JetBrains Mono', monospace; font-size: 0.85rem; transition: border-color 0.2s;
   }
@@ -413,8 +413,12 @@
       <!-- 推移グラフ -->
       <div class="card">
         <div class="card-header">
-          <span class="card-title">推移グラフ</span>
-          <div class="chart-controls">
+          <div style="display:flex;align-items:center;gap:0.8rem;flex-shrink:0;">
+            <span class="card-title">推移グラフ</span>
+            <span id="drilldownLabel" style="display:none;font-size:0.8rem;color:var(--accent2);font-weight:700;max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"></span>
+            <button id="drilldownBack" class="btn" style="display:none;font-size:0.72rem;padding:0.2rem 0.65rem;" onclick="exitDrilldown()">← 戻る</button>
+          </div>
+          <div class="chart-controls" id="chartControls">
             <div class="period-tabs">
               <button class="period-tab active" onclick="setPeriod('all', this)">全期間</button>
               <button class="period-tab" onclick="setPeriod('month', this)">月別</button>
@@ -560,6 +564,7 @@ let miniChartInstances = {};
 let currentMetric = 'sales';
 let currentSort = 'sales';
 let currentPeriod = 'all';
+let drilldownWorkId = null;
 
 const COLORS = ['#e8407a','#7b4fff','#00d4aa','#f5c842','#ff7043','#29b6f6','#ab47bc','#66bb6a'];
 
@@ -698,6 +703,27 @@ function setSortTable(s, btn) {
   renderTable();
 }
 
+function enterDrilldown(workId) {
+  drilldownWorkId = workId;
+  const work = window.state.works[workId];
+  const label = document.getElementById('drilldownLabel');
+  label.textContent = work?.title || workId;
+  label.title = work?.title || workId;
+  label.style.display = 'inline';
+  document.getElementById('drilldownBack').style.display = 'inline-block';
+  document.getElementById('chartControls').style.display = 'none';
+  renderChart();
+  document.getElementById('mainChart').closest('.card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function exitDrilldown() {
+  drilldownWorkId = null;
+  document.getElementById('drilldownLabel').style.display = 'none';
+  document.getElementById('drilldownBack').style.display = 'none';
+  document.getElementById('chartControls').style.display = 'flex';
+  renderChart();
+}
+
 function renderChart() {
   const ctx = document.getElementById('mainChart');
   const selectedWork = document.getElementById('chartWorkSelect').value;
@@ -707,7 +733,21 @@ function renderChart() {
   const labels = grouped.map(s => formatLabel(s.ts, currentPeriod));
   let datasets = [];
 
-  if (selectedWork === '__all__') {
+  if (drilldownWorkId) {
+    // ドリルダウン: 販売本数・売上金額・卸価格を1作品分表示
+    const metricDefs = [
+      { key: 'sales',        label: '販売本数', color: COLORS[0], yAxisID: 'y'      },
+      { key: 'sales_amount', label: '売上金額', color: COLORS[2], yAxisID: 'yMoney' },
+      { key: 'wholesale',    label: '卸価格',   color: COLORS[1], yAxisID: 'yMoney' },
+    ];
+    metricDefs.forEach(m => {
+      const data = grouped.map(s => Number(s.records?.[drilldownWorkId]?.[m.key] || 0));
+      if (data.some(v => v > 0)) {
+        datasets.push({ label: m.label, data, borderColor: m.color, backgroundColor: m.color + '22',
+          fill: false, tension: 0.4, pointRadius: 4, yAxisID: m.yAxisID });
+      }
+    });
+  } else if (selectedWork === '__all__') {
     // 各作品を異なる色の折れ線で重ねて表示
     Object.values(window.state.works).forEach((work, idx) => {
       const color = COLORS[idx % COLORS.length];
@@ -743,14 +783,28 @@ function renderChart() {
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
+      onClick: (event, elements) => {
+        if (drilldownWorkId || elements.length === 0) return;
+        const dsIdx = elements[0].datasetIndex;
+        if (selectedWork === '__all__') {
+          const works = Object.values(window.state.works);
+          if (works[dsIdx]) enterDrilldown(works[dsIdx].id);
+        } else if (selectedWork !== '__all__') {
+          enterDrilldown(selectedWork);
+        }
+      },
       plugins: {
-        legend: { labels: { color: '#8888aa', font: { family: 'JetBrains Mono', size: 11 } } },
+        legend: { labels: { color: '#444466', font: { family: 'JetBrains Mono', size: 11 } } },
         tooltip: {
-          backgroundColor: '#1a1a24', borderColor: '#2a2a3a', borderWidth: 1,
-          titleColor: '#e8e8f0', bodyColor: '#8888aa',
+          backgroundColor: '#ffffff', borderColor: '#d8d8ea', borderWidth: 1,
+          titleColor: '#1a1a2e', bodyColor: '#6060a0',
           callbacks: {
             label: ctx => {
               const val = ctx.parsed.y.toLocaleString();
+              if (drilldownWorkId) {
+                const yId = ctx.dataset.yAxisID;
+                return yId === 'yMoney' ? `${ctx.dataset.label}: ¥${val}` : `${ctx.dataset.label}: ${val}`;
+              }
               return currentMetric === 'sales_amount'
                 ? `${ctx.dataset.label}: ¥${val}`
                 : `${ctx.dataset.label}: ${val}`;
@@ -758,14 +812,28 @@ function renderChart() {
           }
         }
       },
-      scales: {
-        x: { ticks: { color: '#555577', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#1e1e2e' } },
+      scales: drilldownWorkId ? {
+        x: { ticks: { color: '#888899', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#e8e8f0' } },
+        y: {
+          type: 'linear', position: 'left',
+          ticks: { color: '#888899', font: { family: 'JetBrains Mono', size: 10 }, callback: v => v.toLocaleString() },
+          grid: { color: '#e8e8f0' },
+          title: { display: true, text: '販売本数', color: '#888899', font: { size: 10 } }
+        },
+        yMoney: {
+          type: 'linear', position: 'right',
+          ticks: { color: '#888899', font: { family: 'JetBrains Mono', size: 10 }, callback: v => '¥' + v.toLocaleString() },
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: '金額 (¥)', color: '#888899', font: { size: 10 } }
+        }
+      } : {
+        x: { ticks: { color: '#888899', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#e8e8f0' } },
         y: {
           ticks: {
-            color: '#555577', font: { family: 'JetBrains Mono', size: 10 },
+            color: '#888899', font: { family: 'JetBrains Mono', size: 10 },
             callback: v => currentMetric === 'sales_amount' ? '¥' + v.toLocaleString() : v.toLocaleString()
           },
-          grid: { color: '#1e1e2e' }
+          grid: { color: '#e8e8f0' }
         }
       }
     }
@@ -835,8 +903,8 @@ function renderTable() {
     <div class="work-card">
       <div class="work-card-header">
         <div class="rank-badge ${rankCls(i)}">${i+1}</div>
-        <div class="work-card-main">
-          <div class="work-title-cell">${escapeHtml(w.title)}</div>
+        <div class="work-card-main" onclick="enterDrilldown('${w.id}')" style="cursor:pointer;" title="クリックでグラフをドリルダウン">
+          <div class="work-title-cell" title="${escapeHtml(w.title)}">${escapeHtml(w.title)}</div>
           <span class="work-id">${w.id}</span>
           ${badgeHtml(w)}
         </div>
@@ -893,8 +961,8 @@ function renderMiniChart(workId) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#1a1a24', borderColor: '#2a2a3a', borderWidth: 1,
-          titleColor: '#e8e8f0', bodyColor: '#8888aa',
+          backgroundColor: '#ffffff', borderColor: '#d8d8ea', borderWidth: 1,
+          titleColor: '#1a1a2e', bodyColor: '#6060a0',
           callbacks: {
             title: items => labels[items[0].dataIndex],
             label: ctx => `${title}: ${ctx.parsed.y.toLocaleString()}`
@@ -1084,8 +1152,8 @@ function renderThirtyDay() {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#1a1a24', borderColor: '#2a2a3a', borderWidth: 1,
-          titleColor: '#e8e8f0', bodyColor: '#8888aa',
+          backgroundColor: '#ffffff', borderColor: '#d8d8ea', borderWidth: 1,
+          titleColor: '#1a1a2e', bodyColor: '#6060a0',
           callbacks: {
             label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y?.toLocaleString() ?? 'データなし'}`
           }
@@ -1093,13 +1161,13 @@ function renderThirtyDay() {
       },
       scales: {
         x: {
-          title: { display: true, text: '発売日からの経過日数', color: '#555577', font: { size: 11 } },
-          ticks: { color: '#555577', font: { family: 'JetBrains Mono', size: 10 } },
-          grid: { color: '#1e1e2e' }
+          title: { display: true, text: '発売日からの経過日数', color: '#888899', font: { size: 11 } },
+          ticks: { color: '#888899', font: { family: 'JetBrains Mono', size: 10 } },
+          grid: { color: '#e8e8f0' }
         },
         y: {
-          ticks: { color: '#555577', font: { family: 'JetBrains Mono', size: 10 }, callback: v => v.toLocaleString() },
-          grid: { color: '#1e1e2e' }
+          ticks: { color: '#888899', font: { family: 'JetBrains Mono', size: 10 }, callback: v => v.toLocaleString() },
+          grid: { color: '#e8e8f0' }
         }
       }
     }
