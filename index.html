@@ -142,8 +142,7 @@
   /* ---- レイアウト ---- */
   main { max-width: 1400px; margin: 0 auto; padding: 2rem; }
 
-  /* 記録数を削除して3列に */
-  .stats-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 2rem; }
+  .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 2rem; }
 
   .stat-card {
     background: var(--bg2); border: 1px solid var(--border);
@@ -384,12 +383,17 @@
 </header>
 
 <main>
-  <!-- 統計カード（3列） -->
+  <!-- 統計カード（4列） -->
   <div class="stats-grid">
     <div class="stat-card" style="--accent-color: var(--accent3)">
       <div class="stat-label">総販売本数</div>
       <div class="stat-value" id="totalSales">—</div>
       <div class="stat-delta" id="totalSalesDelta"></div>
+    </div>
+    <div class="stat-card" style="--accent-color: var(--gold)">
+      <div class="stat-label">総売上金額</div>
+      <div class="stat-value" style="font-size:1.6rem;" id="totalAmount">—</div>
+      <div class="stat-delta" id="totalAmountDelta"></div>
     </div>
     <div class="stat-card" style="--accent-color: var(--accent)">
       <div class="stat-label">お気に入り <span style="font-size:0.6em;color:var(--text2)">（発売前作品）</span></div>
@@ -422,6 +426,7 @@
             </select>
             <div class="tabs">
               <button class="tab active" onclick="setMetric('sales', this)">販売数</button>
+              <button class="tab" onclick="setMetric('sales_amount', this)">売上金額</button>
               <button class="tab" onclick="setMetric('fav', this)">お気に入り</button>
               <button class="tab" onclick="setMetric('rating', this)">評価</button>
               <button class="tab" onclick="setMetric('reviews', this)">レビュー</button>
@@ -744,13 +749,24 @@ function renderChart() {
           backgroundColor: '#1a1a24', borderColor: '#2a2a3a', borderWidth: 1,
           titleColor: '#e8e8f0', bodyColor: '#8888aa',
           callbacks: {
-            label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}`
+            label: ctx => {
+              const val = ctx.parsed.y.toLocaleString();
+              return currentMetric === 'sales_amount'
+                ? `${ctx.dataset.label}: ¥${val}`
+                : `${ctx.dataset.label}: ${val}`;
+            }
           }
         }
       },
       scales: {
         x: { ticks: { color: '#555577', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#1e1e2e' } },
-        y: { ticks: { color: '#555577', font: { family: 'JetBrains Mono', size: 10 }, callback: v => v.toLocaleString() }, grid: { color: '#1e1e2e' } }
+        y: {
+          ticks: {
+            color: '#555577', font: { family: 'JetBrains Mono', size: 10 },
+            callback: v => currentMetric === 'sales_amount' ? '¥' + v.toLocaleString() : v.toLocaleString()
+          },
+          grid: { color: '#1e1e2e' }
+        }
       }
     }
   });
@@ -780,6 +796,7 @@ function renderTable() {
     return {
       ...w,
       sales: Number(l.sales||0),
+      sales_amount: Number(l.sales_amount||0),
       fav: Number(l.fav||0),
       rating: l.rating || null,
       reviews: l.reviews || null,
@@ -826,6 +843,7 @@ function renderTable() {
         <div style="text-align:right;flex-shrink:0;">
           <div class="work-card-sales">${w.sales.toLocaleString()}</div>
           <div style="font-size:0.7rem;margin-top:2px;">${deltaHTML(w.salesDelta)}</div>
+          ${w.sales_amount > 0 ? `<div style="font-size:0.65rem;color:var(--gold);margin-top:2px;">¥${w.sales_amount.toLocaleString()}</div>` : ''}
         </div>
       </div>
       <div class="work-card-chart">
@@ -925,6 +943,9 @@ function renderStats() {
   const totalSales = sum(latest, 'sales');
   document.getElementById('totalSales').textContent = totalSales.toLocaleString();
 
+  const totalAmount = sum(latest, 'sales_amount');
+  document.getElementById('totalAmount').textContent = '¥' + totalAmount.toLocaleString();
+
   // お気に入りは発売前作品のみ合計
   const preReleaseIds = Object.values(window.state.works)
     .filter(w => w.is_released === false)
@@ -944,14 +965,15 @@ function renderStats() {
   document.getElementById('worksSub').textContent =
     works.length > 0 ? `発売済 ${releasedCount} / 発売前 ${preCount}` : '';
 
-  const deltaEl = (id, d) => {
+  const deltaEl = (id, d, prefix = '') => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (d > 0) { el.className = 'stat-delta up'; el.textContent = `+${d.toLocaleString()} 前回比`; }
-    else if (d < 0) { el.className = 'stat-delta down'; el.textContent = `${d.toLocaleString()} 前回比`; }
+    if (d > 0) { el.className = 'stat-delta up'; el.textContent = `+${prefix}${d.toLocaleString()} 前回比`; }
+    else if (d < 0) { el.className = 'stat-delta down'; el.textContent = `${prefix}${d.toLocaleString()} 前回比`; }
     else { el.className = 'stat-delta'; el.textContent = prev ? '変化なし' : ''; }
   };
   deltaEl('totalSalesDelta', totalSales - sum(prev, 'sales'));
+  deltaEl('totalAmountDelta', totalAmount - sum(prev, 'sales_amount'), '¥');
   deltaEl('totalFavDelta', totalFav - sumPre(prev, 'fav'));
 
   if (latest) document.getElementById('lastUpdate').textContent = new Date(latest.ts).toLocaleString('ja-JP');
@@ -964,13 +986,18 @@ function renderRecent() {
   if (sorted.length === 0) { el.textContent = '記録なし'; return; }
   el.innerHTML = sorted.map(s => {
     const dt = new Date(s.ts).toLocaleString('ja-JP');
-    const total = Object.values(s.records||{}).reduce((sum,r) => sum+Number(r.sales||0), 0);
+    const recs = Object.values(s.records||{});
+    const total = recs.reduce((sum,r) => sum+Number(r.sales||0), 0);
+    const totalAmount = recs.reduce((sum,r) => sum+Number(r.sales_amount||0), 0);
     return `<div style="padding:0.5rem 0;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;">
       <div>
         <div style="font-size:0.82rem;color:var(--text);">${dt}</div>
         <div style="font-size:0.7rem;margin-top:2px;">${Object.keys(s.records||{}).length}作品</div>
       </div>
-      <div style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:var(--accent3);">${total.toLocaleString()}</div>
+      <div style="text-align:right;">
+        <div style="font-family:'JetBrains Mono',monospace;font-size:0.85rem;color:var(--accent3);">${total.toLocaleString()}<span style="font-size:0.65rem;color:var(--text2);margin-left:3px;">本</span></div>
+        ${totalAmount > 0 ? `<div style="font-family:'JetBrains Mono',monospace;font-size:0.75rem;color:var(--gold);">¥${totalAmount.toLocaleString()}</div>` : ''}
+      </div>
     </div>`;
   }).join('');
 }
